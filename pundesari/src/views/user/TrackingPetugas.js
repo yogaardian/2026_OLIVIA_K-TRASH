@@ -53,6 +53,8 @@ function TrackingPetugas() {
   const [orderStatus, setOrderStatus] = useState("assigned");
   const [loading, setLoading] = useState(true);
   const [arrivedNotification, setArrivedNotification] = useState(false);
+  const [completedNotification, setCompletedNotification] = useState(false);
+  const [completedRedirected, setCompletedRedirected] = useState(false);
   const [showSampahModal, setShowSampahModal] = useState(false);
   const [sampahData, setSampahData] = useState(null);
   const [totalBerat, setTotalBerat] = useState(0);
@@ -122,6 +124,18 @@ function TrackingPetugas() {
     return () => clearInterval(interval);
   }, [orderId, history, fetchTracking]);
 
+  useEffect(() => {
+    if (orderStatus === "completed" && !completedRedirected) {
+      setCompletedNotification(true);
+      const redirectTimer = setTimeout(() => {
+        setCompletedRedirected(true);
+        history.push("/user/dashboard");
+      }, 2500);
+
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [orderStatus, completedRedirected, history]);
+
   const handleRefreshLocation = async () => {
     await fetchTracking();
   };
@@ -170,6 +184,11 @@ function TrackingPetugas() {
             {arrivedNotification && (
               <Alert variant="success" className="mb-3" dismissible onClose={() => setArrivedNotification(false)}>
                 <strong>✓ Petugas Sudah Sampai!</strong> Petugas sedang menunggu dan memproses sampahmu.
+              </Alert>
+            )}
+            {completedNotification && (
+              <Alert variant="info" className="mb-3" dismissible onClose={() => setCompletedNotification(false)}>
+                <strong>✓ Penjemputan Selesai!</strong> Data sudah dikirim, Anda akan segera diarahkan ke Dashboard.
               </Alert>
             )}
 
@@ -287,13 +306,27 @@ function TrackingPetugas() {
               </div>
             )}
 
-            <Button 
-              variant="outline-danger" 
-              className="w-100 py-2"
-              onClick={handleCancel}
-            >
-              Batalkan Order
-            </Button>
+            {(orderStatus === "approved" || orderStatus === "completed") && (
+              <div className="d-grid gap-2 mb-3">
+                <Button
+                  variant="primary"
+                  className="w-100 py-2"
+                  onClick={() => history.push("/user/dashboard")}
+                >
+                  Selesai
+                </Button>
+              </div>
+            )}
+
+            {orderStatus !== "approved" && orderStatus !== "completed" && (
+              <Button 
+                variant="outline-danger" 
+                className="w-100 py-2"
+                onClick={handleCancel}
+              >
+                Batalkan Order
+              </Button>
+            )}
           </Container>
         </div>
       </main>
