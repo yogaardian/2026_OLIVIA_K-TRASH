@@ -308,6 +308,76 @@
   flex-shrink: 0;
 }
 
+/* ─── TENTANG KAMI ───────────────────────────────────── */
+.about-section {
+  @apply px-6 py-20;
+  background-color: #fafafa;
+}
+
+.about-container {
+  @apply max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center;
+}
+
+.about-left h2 {
+  @apply font-bold text-gray-900 mt-5 mb-6 leading-snug;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+
+.about-left > p {
+  @apply text-gray-500 text-lg leading-relaxed mb-8;
+}
+
+.about-features {
+  @apply space-y-6;
+}
+
+.about-feature {
+  @apply flex items-start gap-4;
+}
+
+.feature-check {
+  @apply w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold;
+  background-color: var(--green-primary);
+  font-size: 1rem;
+}
+
+.about-feature h4 {
+  @apply font-bold text-gray-900 mb-1;
+}
+
+.about-feature p {
+  @apply text-gray-500 text-sm;
+}
+
+.about-right {
+  @apply grid grid-cols-1 gap-6;
+}
+
+.about-card {
+  @apply bg-white p-8 rounded-2xl text-center;
+  box-shadow: var(--shadow-card);
+  border: 1px solid #f0fdf4;
+}
+
+.about-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-4px);
+  transition: all 0.3s duration-300;
+}
+
+.stat-number {
+  @apply font-bold text-gray-900;
+  font-size: 2.5rem;
+  color: var(--green-primary);
+}
+
+.stat-text {
+  @apply text-gray-500 mt-2 font-semibold;
+}
+
+/* ─── CARA KERJA ─────────────────────────────────────── */
+
+
 /* ─── FOOTER ─────────────────────────────────────────── */
 .footer {
   @apply py-16 mt-10;

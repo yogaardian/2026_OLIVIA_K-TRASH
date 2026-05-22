@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from "react";
 import { useHistory, useLocation } from "react-router-dom";
 import { Button, Card, Form, Row, Col, Alert } from "react-bootstrap";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import { hargaAPI, locationAPI, ordersAPI } from "../../services/api";
 
@@ -30,11 +30,52 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-function ChangeView({ center, zoom }) {
+function ChangeView({ center, zoom, follow = true }) {
   const map = useMap();
-  if (center) {
+
+  useEffect(() => {
+    if (map._trackingInitialized) return;
+    map._trackingInitialized = true;
+    map._userInteracted = false;
+    const onMoveStart = () => { map._userInteracted = true; };
+    map.on('movestart', onMoveStart);
+    return () => map.off('movestart', onMoveStart);
+  }, [map]);
+
+  useEffect(() => {
+    if (!center || !follow) return;
+    if (map._userInteracted) return;
     map.setView(center, zoom);
-  }
+  }, [map, center, zoom, follow]);
+
+  return null;
+}
+
+function FitRouteBounds({ driverLocation, userLocation, routeGeoJson, forceFit = false }) {
+  const map = useMap();
+  const hasFittedRef = useRef(false);
+
+  useEffect(() => {
+    if (hasFittedRef.current && !forceFit) return;
+    if (map._userInteracted && !forceFit) {
+      hasFittedRef.current = true;
+      return;
+    }
+
+    if (routeGeoJson && routeGeoJson.coordinates) {
+      const coords = routeGeoJson.coordinates.map(([lng, lat]) => [lat, lng]);
+      const bounds = L.latLngBounds(coords);
+      if (driverLocation) bounds.extend(driverLocation);
+      if (userLocation) bounds.extend(userLocation);
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
+      hasFittedRef.current = true;
+    } else if (driverLocation && userLocation) {
+      const bounds = L.latLngBounds([driverLocation, userLocation]);
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
+      hasFittedRef.current = true;
+    }
+  }, [map, routeGeoJson, driverLocation, userLocation, forceFit]);
+
   return null;
 }
 
@@ -53,6 +94,109 @@ function TrackingUser() {
   const [userLocation, setUserLocation] = useState(
     initialOrder?.user_lat && initialOrder?.user_lng ? [initialOrder.user_lat, initialOrder.user_lng] : null
   );
+  const [routeGeoJson, setRouteGeoJson] = useState(null);
+  const [kecamatanGeoJson, setKecamatanGeoJson] = useState(null);
+  const [driverSmoothPos, setDriverSmoothPos] = useState(null);
+  const [userSmoothPos, setUserSmoothPos] = useState(null);
+
+  // Routing/caching refs
+  const routeCacheRef = useRef(new Map());
+  const lastRouteTimeRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const abortControllerRef = useRef(null);
+  const lastFetchedPositionsRef = useRef(null);
+
+  const MIN_ROUTE_INTERVAL = 5000; // ms
+  const MOVE_THRESHOLD_METERS = 50; // meters
+
+  const roundCoord = (v) => Math.round(v * 100000) / 100000;
+  const coordKey = (a, b) => `${roundCoord(a[0])},${roundCoord(a[1])}_${roundCoord(b[0])},${roundCoord(b[1])}`;
+
+  const haversine = (a, b) => {
+    const toRad = (x) => (x * Math.PI) / 180;
+    const dLat = toRad(b[0] - a[0]);
+    const dLon = toRad(b[1] - a[1]);
+    const lat1 = toRad(a[0]);
+    const lat2 = toRad(b[0]);
+    const R = 6371000;
+    const x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    return R * c;
+  };
+
+  const snapPoint = async (lat, lng, signal) => {
+    try {
+      const r = await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}`, { signal });
+      const j = await r.json();
+      if (j && j.waypoints && j.waypoints.length > 0 && j.waypoints[0].location) {
+        const [snappedLng, snappedLat] = j.waypoints[0].location;
+        return [snappedLat, snappedLng];
+      }
+    } catch (e) {
+      // ignore
+    }
+    return [lat, lng];
+  };
+
+  const chooseBestRoute = (routes) => {
+    if (!routes || routes.length === 0) return null;
+    // score: prefer lower duration and fewer steps
+    const scored = routes.map((r) => {
+      let steps = 0;
+      if (r.legs) r.legs.forEach((leg) => { if (leg.steps) steps += leg.steps.length; });
+      const score = (r.duration || 0) + steps * 2;
+      return { r, score };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    return scored[0].r;
+  };
+
+  const fetchRouteManaged = useCallback(async (from, to) => {
+    if (!from || !to) return;
+    const now = Date.now();
+    const key = coordKey(from, to);
+    const cache = routeCacheRef.current.get(key);
+    if (cache && now - cache.ts < 60 * 1000) {
+      setRouteGeoJson(cache.geo);
+      return;
+    }
+
+    if (inFlightRef.current && now - lastRouteTimeRef.current < MIN_ROUTE_INTERVAL) return;
+    const distMoved = lastFetchedPositionsRef.current ? Math.max(haversine(lastFetchedPositionsRef.current.from, from), haversine(lastFetchedPositionsRef.current.to, to)) : Infinity;
+    if (distMoved < MOVE_THRESHOLD_METERS && now - lastRouteTimeRef.current < MIN_ROUTE_INTERVAL) return;
+
+    // abort previous
+    try { abortControllerRef.current?.abort(); } catch (e) {}
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    inFlightRef.current = true;
+    lastRouteTimeRef.current = now;
+
+    try {
+      const [sFromLat, sFromLng] = await snapPoint(from[0], from[1], controller.signal);
+      const [sToLat, sToLng] = await snapPoint(to[0], to[1], controller.signal);
+
+      const url = `https://router.project-osrm.org/route/v1/driving/${sFromLng},${sFromLat};${sToLng},${sToLat}?overview=full&geometries=geojson&steps=true&alternatives=true`;
+      const resp = await fetch(url, { signal: controller.signal });
+      const data = await resp.json();
+      if (data && data.routes && data.routes.length > 0) {
+        const best = chooseBestRoute(data.routes);
+        if (best && best.geometry) {
+          setRouteGeoJson(best.geometry);
+          routeCacheRef.current.set(key, { geo: best.geometry, ts: Date.now() });
+        }
+      } else {
+        setRouteGeoJson({ type: 'LineString', coordinates: [[from[1], from[0]], [to[1], to[0]]] });
+      }
+      lastFetchedPositionsRef.current = { from, to };
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.error('Error fetching managed route', err);
+      setRouteGeoJson({ type: 'LineString', coordinates: [[from[1], from[0]], [to[1], to[0]]] });
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, []);
   const [userAddress, setUserAddress] = useState(initialOrder?.address || "");
   const [sampahData, setSampahData] = useState({ organik: {}, anorganik: {}, lainnya: {} });
   const [totalBerat, setTotalBerat] = useState(0);
@@ -120,8 +264,6 @@ function TrackingUser() {
     }
   }, [orderId]);
 
-  const [hasStartedRoute, setHasStartedRoute] = useState(false);
-
   const updateOrderStatus = useCallback(async (newStatus) => {
     if (!orderId || !driverId) return;
     try {
@@ -131,9 +273,6 @@ function TrackingUser() {
       });
       if (response.data.status === "success") {
         setOrderStatus(newStatus);
-        if (newStatus === "Dalam Perjalanan") {
-          setHasStartedRoute(true);
-        }
       } else {
         console.error("Failed to update order status:", response.data);
       }
@@ -167,11 +306,6 @@ function TrackingUser() {
     return () => clearInterval(interval);
   }, [order?.id, history, fetchOrderStatus]);
 
-  useEffect(() => {
-    if (orderStatus === "assigned" && !hasStartedRoute) {
-      updateOrderStatus("Dalam Perjalanan");
-    }
-  }, [orderStatus, hasStartedRoute, updateOrderStatus]);
 
   useEffect(() => {
     if (!navigator.geolocation || !order?.id) return;
@@ -193,6 +327,90 @@ function TrackingUser() {
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [order?.id, orderStatus, sendDriverLocation]);
+
+  useEffect(() => {
+    if (!driverLocation || !userLocation) {
+      setRouteGeoJson(null);
+      return;
+    }
+    fetchRouteManaged(driverLocation, userLocation);
+  }, [driverLocation, userLocation, fetchRouteManaged]);
+
+  // Smooth marker interpolation (linear over 800ms)
+  useEffect(() => {
+    let rafId = null;
+    let start = null;
+    const DURATION = 800;
+    const from = driverSmoothPos || driverLocation || null;
+    const to = driverLocation;
+    if (!to) return;
+    if (!from) {
+      setDriverSmoothPos(to);
+      return;
+    }
+    const step = (ts) => {
+      if (!start) start = ts;
+      const t = Math.min(1, (ts - start) / DURATION);
+      const lat = from[0] + (to[0] - from[0]) * t;
+      const lng = from[1] + (to[1] - from[1]) * t;
+      setDriverSmoothPos([lat, lng]);
+      if (t < 1) rafId = requestAnimationFrame(step);
+    };
+    rafId = requestAnimationFrame(step);
+    return () => { if (rafId) cancelAnimationFrame(rafId); };
+  }, [driverLocation]);
+
+  useEffect(() => {
+    let rafId = null;
+    let start = null;
+    const DURATION = 800;
+    const from = userSmoothPos || userLocation || null;
+    const to = userLocation;
+    if (!to) return;
+    if (!from) {
+      setUserSmoothPos(to);
+      return;
+    }
+    const step = (ts) => {
+      if (!start) start = ts;
+      const t = Math.min(1, (ts - start) / DURATION);
+      const lat = from[0] + (to[0] - from[0]) * t;
+      const lng = from[1] + (to[1] - from[1]) * t;
+      setUserSmoothPos([lat, lng]);
+      if (t < 1) rafId = requestAnimationFrame(step);
+    };
+    rafId = requestAnimationFrame(step);
+    return () => { if (rafId) cancelAnimationFrame(rafId); };
+  }, [userLocation]);
+
+  // Try to load kecamatan GeoJSON to display district boundaries (optional)
+  useEffect(() => {
+    const tryFetchKecamatan = async () => {
+      const candidates = [
+        '/api/geojson/all',
+        '/api/geojson/kecamatan_all.geojson',
+        '/uploads/kecamatan_all.geojson',
+        '/uploads/kecamatan.geojson',
+        '/api/kecamatan/get_all',
+      ];
+
+      for (const path of candidates) {
+        try {
+          const res = await fetch(path);
+          if (!res.ok) continue;
+          const json = await res.json();
+          if (json && (json.type === 'FeatureCollection' || json.features)) {
+            setKecamatanGeoJson(json);
+            return;
+          }
+        } catch (e) {
+          // ignore and try next
+        }
+      }
+    };
+
+    tryFetchKecamatan();
+  }, []);
 
   const handleRefreshLocation = async () => {
     if (!order) return;
@@ -230,6 +448,12 @@ function TrackingUser() {
       alert("Gagal update status: " + (err.response?.data?.message || err.message));
     }
   };
+
+  useEffect(() => {
+    if (orderStatus === "arrived") {
+      setShowForm(true);
+    }
+  }, [orderStatus]);
 
   const handleInputChange = (kategori, itemId, berat) => {
     const numValue = parseFloat(berat) || 0;
@@ -352,12 +576,30 @@ function TrackingUser() {
           <MapContainer center={center} zoom={15} style={{ height: "100%", width: "100%" }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             <ChangeView center={center} zoom={15} />
-            {driverLocation && (
+            {kecamatanGeoJson && (
+              <GeoJSON
+                data={kecamatanGeoJson}
+                style={{ color: '#888', weight: 1, fillOpacity: 0.03 }}
+                // help performance by simplifying on the fly
+                smoothFactor={1}
+              />
+            )}
+
+            {driverSmoothPos ? (
+              <Marker position={driverSmoothPos} icon={blueIcon}>
+                <Popup>🚗 Lokasi Anda (Petugas)</Popup>
+              </Marker>
+            ) : driverLocation && (
               <Marker position={driverLocation} icon={blueIcon}>
                 <Popup>🚗 Lokasi Anda (Petugas)</Popup>
               </Marker>
             )}
-            {currentUserLocation ? (
+
+            {userSmoothPos ? (
+              <Marker position={userSmoothPos} icon={redIcon}>
+                <Popup>👤 Lokasi User - {userAddress || order.address}</Popup>
+              </Marker>
+            ) : currentUserLocation ? (
               <Marker position={currentUserLocation} icon={redIcon}>
                 <Popup>👤 Lokasi User - {userAddress || order.address}</Popup>
               </Marker>
@@ -366,12 +608,27 @@ function TrackingUser() {
                 <Popup>Lokasi default</Popup>
               </Marker>
             )}
-            {driverLocation && currentUserLocation && (
-              <Polyline
-                positions={[driverLocation, currentUserLocation]}
-                pathOptions={{ color: "#4CAF50", weight: 5 }}
+
+            {routeGeoJson ? (
+              <GeoJSON
+                key={JSON.stringify(routeGeoJson)}
+                data={routeGeoJson}
+                style={{ color: "#4CAF50", weight: 5, opacity: 0.9 }}
               />
+            ) : (
+              driverLocation && currentUserLocation && (
+                <Polyline
+                  positions={[driverLocation, currentUserLocation]}
+                  pathOptions={{ color: "#4CAF50", weight: 5 }}
+                />
+              )
             )}
+
+            <FitRouteBounds
+              driverLocation={driverSmoothPos || driverLocation}
+              userLocation={userSmoothPos || currentUserLocation}
+              routeGeoJson={routeGeoJson}
+            />
           </MapContainer>
         </div>
       </div>
@@ -383,7 +640,7 @@ function TrackingUser() {
           Status Order: <strong>{orderStatus}</strong>
         </Alert>
 
-        {!showForm && orderStatus === "assigned" && (
+        {!showForm && (orderStatus === "assigned" || orderStatus === "on_the_way") && (
           <Button 
             className="w-100 py-3 mb-3" 
             style={{ backgroundColor: "#4CAF50", border: "none", borderRadius: "12px", fontSize: "16px", fontWeight: "bold" }}
@@ -391,6 +648,12 @@ function TrackingUser() {
           >
             Petugas Sampai
           </Button>
+        )}
+
+        {orderStatus === "completed" && !showForm && (
+          <Alert variant="info" className="mb-3">
+            Order sudah selesai dan menunggu konfirmasi admin.
+          </Alert>
         )}
 
         {showForm && (

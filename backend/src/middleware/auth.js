@@ -32,12 +32,15 @@ const authenticateToken = async (req, res, next) => {
 };
 
 const requireRole = (roles) => {
+  const normalizedRoles = roles.map(role => String(role).toLowerCase().trim());
+
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    if (!roles.includes(req.user.role)) {
+    const userRole = String(req.user.role || '').toLowerCase().trim();
+    if (!normalizedRoles.includes(userRole)) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 

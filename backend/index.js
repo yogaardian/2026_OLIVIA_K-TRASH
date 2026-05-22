@@ -895,7 +895,7 @@ app.post('/orders', authenticateToken, requireRole(['user', 'driver']), async (r
 });
 
 // ================= LIST ORDER =================
-app.get('/orders/pending', authenticateToken, requireRole(['admin']), async (req, res) => {
+app.get('/orders/pending', authenticateToken, requireRole(['admin','driver','petugas']), async (req, res) => {
   try {
     const [rows] = await db.query(
       "SELECT o.*, u.nama as user_name FROM orders o JOIN users u ON o.user_id = u.id WHERE o.status = 'pending'"
@@ -942,7 +942,7 @@ app.get('/orders/:id', authenticateToken, async (req, res) => {
 });
 
 // ================= ACCEPT ORDER =================
-app.patch('/orders/accept/:id', authenticateToken, requireRole(['driver']), async (req, res) => {
+app.patch('/orders/accept/:id', authenticateToken, requireRole(['driver','petugas']), async (req, res) => {
   try {
     const { driver_id } = req.body;
     const orderId = req.params.id;
@@ -967,7 +967,7 @@ app.patch('/orders/accept/:id', authenticateToken, requireRole(['driver']), asyn
 });
 
 // ================= UPDATE STATUS =================
-app.patch('/orders/status/:id', authenticateToken, requireRole(['driver']), async (req, res) => {
+app.patch('/orders/status/:id', authenticateToken, requireRole(['driver','petugas']), async (req, res) => {
   let connection;
   try {
     const { driver_id, status, sampah_data, total_berat, total_harga } = req.body;
@@ -1048,7 +1048,7 @@ app.patch('/orders/status/:id', authenticateToken, requireRole(['driver']), asyn
 });
 
 // ================= DRIVER LOCATION =================
-app.post('/driver/location', authenticateToken, requireRole(['driver']), async (req, res) => {
+app.post('/driver/location', authenticateToken, requireRole(['driver','petugas']), async (req, res) => {
   try {
     const { driver_id, order_id, lat, lng } = req.body;
 
@@ -1350,6 +1350,113 @@ app.get('/transactions', authenticateToken, requireRole(['admin']), async (req, 
   }
 });
 
+// ================= CREATE TABLES IF NOT EXISTS =================
+(async () => {
+  try {
+    // Create driver_locations table for realtime tracking
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS driver_locations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        driver_id INT NOT NULL,
+        order_id INT NOT NULL,
+        lat DECIMAL(10, 8) NOT NULL,
+        lng DECIMAL(11, 8) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        
+        FOREIGN KEY (driver_id) REFERENCES users(id),
+        FOREIGN KEY (order_id) REFERENCES orders(id),
+        INDEX idx_order_id (order_id),
+        INDEX idx_driver_id (driver_id),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    const [driverLocationColumns] = await db.query("SHOW COLUMNS FROM driver_locations WHERE Field = 'id'");
+    if (driverLocationColumns.length > 0 && !driverLocationColumns[0].Extra.includes('auto_increment')) {
+      await db.query('DROP TABLE IF EXISTS driver_locations_tmp');
+      await db.query(`
+        CREATE TABLE driver_locations_tmp (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          driver_id INT NOT NULL,
+          order_id INT NOT NULL,
+          lat DECIMAL(10, 8) NOT NULL,
+          lng DECIMAL(11, 8) NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_order_id (order_id),
+          INDEX idx_driver_id (driver_id),
+          INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      await db.query(`
+        INSERT INTO driver_locations_tmp (driver_id, order_id, lat, lng, created_at)
+        SELECT driver_id, order_id, lat, lng, created_at FROM driver_locations
+      `);
+      await db.query('DROP TABLE driver_locations');
+      await db.query('RENAME TABLE driver_locations_tmp TO driver_locations');
+      console.log('✓ Recreated driver_locations with AUTO_INCREMENT id');
+    }
+
+    console.log('✓ Table driver_locations ready');
+  } catch (err) {
+    console.error('Error creating tables:', err);
+  }
+})();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server jalan di port ${PORT} pada 0.0.0.0`);
+});
+
+// ================= GEOJSON SERVING =================
+// Serve individual geojson files from project-level api/geojson folder
+const fs = require('fs');
+const geojsonDir = path.join(__dirname, '..', 'api', 'geojson');
+
+app.get('/api/geojson/:name', async (req, res) => {
+  try {
+    let name = req.params.name || '';
+    if (!name.toLowerCase().endsWith('.geojson')) name = `${name}.geojson`;
+    const filePath = path.join(geojsonDir, name);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ status: 'fail', message: 'GeoJSON not found' });
+    }
+    const content = fs.readFileSync(filePath, 'utf8');
+    try {
+      const json = JSON.parse(content);
+      return res.json(json);
+    } catch (err) {
+      return res.type('application/json').send(content);
+    }
+  } catch (err) {
+    console.error('Error serving geojson file', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// Return combined FeatureCollection of all .geojson files in the folder
+app.get('/api/geojson/all', async (req, res) => {
+  try {
+    if (!fs.existsSync(geojsonDir)) return res.json({ type: 'FeatureCollection', features: [] });
+    const files = fs.readdirSync(geojsonDir).filter(f => f.toLowerCase().endsWith('.geojson'));
+    const allFeatures = [];
+    for (const f of files) {
+      try {
+        const txt = fs.readFileSync(path.join(geojsonDir, f), 'utf8');
+        const j = JSON.parse(txt);
+        if (j.type === 'FeatureCollection' && Array.isArray(j.features)) {
+          allFeatures.push(...j.features);
+        } else if (j.type === 'Feature') {
+          allFeatures.push(j);
+        } else if (Array.isArray(j)) {
+          // array of features
+          allFeatures.push(...j);
+        }
+      } catch (e) {
+        console.warn('Skipping invalid geojson', f, e.message);
+      }
+    }
+    return res.json({ type: 'FeatureCollection', features: allFeatures });
+  } catch (err) {
+    console.error('Error building combined geojson', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useHistory } from "react-router-dom";
 import { Container, Button, Card, Alert, Modal, Row, Col, Badge } from "react-bootstrap";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import { locationAPI } from "../../services/api";
 
@@ -35,11 +35,52 @@ import Sidebar from "../../components/Sidebar.jsx";
 import "../../css/Dashboard.css";
 import "../../css/sidebar.css";
 
-function ChangeView({ center, zoom }) {
+function ChangeView({ center, zoom, follow = true }) {
   const map = useMap();
-  if (center) {
+
+  useEffect(() => {
+    if (map._trackingInitialized) return;
+    map._trackingInitialized = true;
+    map._userInteracted = false;
+    const onMoveStart = () => { map._userInteracted = true; };
+    map.on('movestart', onMoveStart);
+    return () => map.off('movestart', onMoveStart);
+  }, [map]);
+
+  useEffect(() => {
+    if (!center || !follow) return;
+    if (map._userInteracted) return;
     map.setView(center, zoom);
-  }
+  }, [map, center, zoom, follow]);
+
+  return null;
+}
+
+function FitRouteBounds({ userLocation, driverLocation, routeGeoJson, forceFit = false }) {
+  const map = useMap();
+  const hasFittedRef = useRef(false);
+
+  useEffect(() => {
+    if (hasFittedRef.current && !forceFit) return;
+    if (map._userInteracted && !forceFit) {
+      hasFittedRef.current = true;
+      return;
+    }
+
+    if (routeGeoJson && routeGeoJson.coordinates) {
+      const coords = routeGeoJson.coordinates.map(([lng, lat]) => [lat, lng]);
+      const bounds = L.latLngBounds(coords);
+      if (userLocation) bounds.extend(userLocation);
+      if (driverLocation) bounds.extend(driverLocation);
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
+      hasFittedRef.current = true;
+    } else if (userLocation && driverLocation) {
+      const bounds = L.latLngBounds([userLocation, driverLocation]);
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
+      hasFittedRef.current = true;
+    }
+  }, [map, routeGeoJson, userLocation, driverLocation, forceFit]);
+
   return null;
 }
 
@@ -48,6 +89,7 @@ function TrackingPetugas() {
   const orderId = sessionStorage.getItem("current_order_id");
   const [driverLocation, setDriverLocation] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
+  const [routeGeoJson, setRouteGeoJson] = useState(null);
   const [userAddress, setUserAddress] = useState("");
   const [driverInfo, setDriverInfo] = useState(null);
   const [orderStatus, setOrderStatus] = useState("assigned");
@@ -59,6 +101,106 @@ function TrackingPetugas() {
   const [sampahData, setSampahData] = useState(null);
   const [totalBerat, setTotalBerat] = useState(0);
   const [totalHarga, setTotalHarga] = useState(0);
+  const [kecamatanGeoJson, setKecamatanGeoJson] = useState(null);
+  const [driverSmoothPos, setDriverSmoothPos] = useState(null);
+  const [userSmoothPos, setUserSmoothPos] = useState(null);
+
+  // Routing refs & caches
+  const routeCacheRef = useRef(new Map());
+  const lastRouteTimeRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const abortControllerRef = useRef(null);
+  const lastFetchedPositionsRef = useRef(null);
+
+  const MIN_ROUTE_INTERVAL = 5000; // ms
+  const MOVE_THRESHOLD_METERS = 50; // meters
+
+  const roundCoord = (v) => Math.round(v * 100000) / 100000;
+  const coordKey = (a, b) => `${roundCoord(a[0])},${roundCoord(a[1])}_${roundCoord(b[0])},${roundCoord(b[1])}`;
+
+  const haversine = (a, b) => {
+    const toRad = (x) => (x * Math.PI) / 180;
+    const dLat = toRad(b[0] - a[0]);
+    const dLon = toRad(b[1] - a[1]);
+    const lat1 = toRad(a[0]);
+    const lat2 = toRad(b[0]);
+    const R = 6371000;
+    const x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    return R * c;
+  };
+
+  const snapPoint = async (lat, lng, signal) => {
+    try {
+      const r = await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}`, { signal });
+      const j = await r.json();
+      if (j && j.waypoints && j.waypoints.length > 0 && j.waypoints[0].location) {
+        const [snappedLng, snappedLat] = j.waypoints[0].location;
+        return [snappedLat, snappedLng];
+      }
+    } catch (e) {
+      // ignore
+    }
+    return [lat, lng];
+  };
+
+  const chooseBestRoute = (routes) => {
+    if (!routes || routes.length === 0) return null;
+    const scored = routes.map((r) => {
+      let steps = 0;
+      if (r.legs) r.legs.forEach((leg) => { if (leg.steps) steps += leg.steps.length; });
+      const score = (r.duration || 0) + steps * 2;
+      return { r, score };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    return scored[0].r;
+  };
+
+  const fetchRouteManaged = useCallback(async (from, to) => {
+    if (!from || !to) return;
+    const now = Date.now();
+    const key = coordKey(from, to);
+    const cache = routeCacheRef.current.get(key);
+    if (cache && now - cache.ts < 60 * 1000) {
+      setRouteGeoJson(cache.geo);
+      return;
+    }
+
+    if (inFlightRef.current && now - lastRouteTimeRef.current < MIN_ROUTE_INTERVAL) return;
+    const distMoved = lastFetchedPositionsRef.current ? Math.max(haversine(lastFetchedPositionsRef.current.from, from), haversine(lastFetchedPositionsRef.current.to, to)) : Infinity;
+    if (distMoved < MOVE_THRESHOLD_METERS && now - lastRouteTimeRef.current < MIN_ROUTE_INTERVAL) return;
+
+    try { abortControllerRef.current?.abort(); } catch (e) {}
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    inFlightRef.current = true;
+    lastRouteTimeRef.current = now;
+
+    try {
+      const [sFromLat, sFromLng] = await snapPoint(from[0], from[1], controller.signal);
+      const [sToLat, sToLng] = await snapPoint(to[0], to[1], controller.signal);
+
+      const url = `https://router.project-osrm.org/route/v1/driving/${sFromLng},${sFromLat};${sToLng},${sToLat}?overview=full&geometries=geojson&steps=true&alternatives=true`;
+      const resp = await fetch(url, { signal: controller.signal });
+      const data = await resp.json();
+      if (data && data.routes && data.routes.length > 0) {
+        const best = chooseBestRoute(data.routes);
+        if (best && best.geometry) {
+          setRouteGeoJson(best.geometry);
+          routeCacheRef.current.set(key, { geo: best.geometry, ts: Date.now() });
+        }
+      } else {
+        setRouteGeoJson({ type: 'LineString', coordinates: [[from[1], from[0]], [to[1], to[0]]] });
+      }
+      lastFetchedPositionsRef.current = { from, to };
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.error('Error fetching managed route', err);
+      setRouteGeoJson({ type: 'LineString', coordinates: [[from[1], from[0]], [to[1], to[0]]] });
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, []);
 
   const orderStatusRef = useRef(orderStatus);
 
@@ -145,10 +287,88 @@ function TrackingPetugas() {
   };
 
   const center = useMemo(() => driverLocation || userLocation || DEFAULT_CENTER, [driverLocation, userLocation]);
-  const routePositions = useMemo(
-    () => (driverLocation && userLocation ? [userLocation, driverLocation] : []),
-    [driverLocation, userLocation]
-  );
+  useEffect(() => {
+    if (!driverLocation || !userLocation) {
+      setRouteGeoJson(null);
+      return;
+    }
+    fetchRouteManaged(userLocation, driverLocation);
+  }, [driverLocation, userLocation, fetchRouteManaged]);
+
+  // Smooth marker interpolation
+  useEffect(() => {
+    let rafId = null;
+    let start = null;
+    const DURATION = 800;
+    const from = driverSmoothPos || driverLocation || null;
+    const to = driverLocation;
+    if (!to) return;
+    if (!from) {
+      setDriverSmoothPos(to);
+      return;
+    }
+    const step = (ts) => {
+      if (!start) start = ts;
+      const t = Math.min(1, (ts - start) / DURATION);
+      const lat = from[0] + (to[0] - from[0]) * t;
+      const lng = from[1] + (to[1] - from[1]) * t;
+      setDriverSmoothPos([lat, lng]);
+      if (t < 1) rafId = requestAnimationFrame(step);
+    };
+    rafId = requestAnimationFrame(step);
+    return () => { if (rafId) cancelAnimationFrame(rafId); };
+  }, [driverLocation]);
+
+  useEffect(() => {
+    let rafId = null;
+    let start = null;
+    const DURATION = 800;
+    const from = userSmoothPos || userLocation || null;
+    const to = userLocation;
+    if (!to) return;
+    if (!from) {
+      setUserSmoothPos(to);
+      return;
+    }
+    const step = (ts) => {
+      if (!start) start = ts;
+      const t = Math.min(1, (ts - start) / DURATION);
+      const lat = from[0] + (to[0] - from[0]) * t;
+      const lng = from[1] + (to[1] - from[1]) * t;
+      setUserSmoothPos([lat, lng]);
+      if (t < 1) rafId = requestAnimationFrame(step);
+    };
+    rafId = requestAnimationFrame(step);
+    return () => { if (rafId) cancelAnimationFrame(rafId); };
+  }, [userLocation]);
+
+  // Load kecamatan GeoJSON to display district boundaries
+  useEffect(() => {
+    const tryFetchKecamatan = async () => {
+      const candidates = [
+        '/api/geojson/all',
+        '/api/geojson/kecamatan_all.geojson',
+        '/uploads/kecamatan_all.geojson',
+        '/uploads/kecamatan.geojson',
+      ];
+
+      for (const path of candidates) {
+        try {
+          const res = await fetch(path);
+          if (!res.ok) continue;
+          const json = await res.json();
+          if (json && (json.type === 'FeatureCollection' || json.features)) {
+            setKecamatanGeoJson(json);
+            return;
+          }
+        } catch (e) {
+          // ignore and try next
+        }
+      }
+    };
+
+    tryFetchKecamatan();
+  }, []);
 
   if (loading) {
     return (
@@ -267,22 +487,55 @@ function TrackingPetugas() {
                   >
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <ChangeView center={center} zoom={15} />
-                    {userLocation && (
+                    {kecamatanGeoJson && (
+                      <GeoJSON
+                        data={kecamatanGeoJson}
+                        style={{ color: '#888', weight: 1, fillOpacity: 0.03 }}
+                        smoothFactor={1}
+                      />
+                    )}
+
+                    {userSmoothPos ? (
+                      <Marker position={userSmoothPos} icon={redIcon}>
+                        <Popup>📍 Lokasi Anda - {userAddress || "Alamat user"}</Popup>
+                      </Marker>
+                    ) : userLocation && (
                       <Marker position={userLocation} icon={redIcon}>
                         <Popup>📍 Lokasi Anda - {userAddress || "Alamat user"}</Popup>
                       </Marker>
                     )}
-                    {driverLocation && (
+
+                    {driverSmoothPos ? (
+                      <Marker position={driverSmoothPos} icon={blueIcon}>
+                        <Popup>🚗 Lokasi Petugas Sekarang</Popup>
+                      </Marker>
+                    ) : driverLocation && (
                       <Marker position={driverLocation} icon={blueIcon}>
                         <Popup>🚗 Lokasi Petugas Sekarang</Popup>
                       </Marker>
                     )}
-                    {driverLocation && userLocation && (
-                      <Polyline
-                        positions={[userLocation, driverLocation]}
-                        pathOptions={{ color: "#4CAF50", weight: 5 }}
+
+                    {routeGeoJson ? (
+                      <GeoJSON
+                        key={JSON.stringify(routeGeoJson)}
+                        data={routeGeoJson}
+                        style={{ color: "#3388ff", weight: 6, opacity: 0.7 }}
                       />
+                    ) : (
+                      driverLocation && userLocation && (
+                        <Polyline
+                          positions={[userLocation, driverLocation]}
+                          pathOptions={{ color: "#3388ff", weight: 6 }}
+                        />
+                      )
                     )}
+
+                    <FitRouteBounds
+                      userLocation={userSmoothPos || userLocation}
+                      driverLocation={driverSmoothPos || driverLocation}
+                      routeGeoJson={routeGeoJson}
+                      kecamatanGeoJson={kecamatanGeoJson}
+                    />
                   </MapContainer>
                 </div>
               </Card.Body>

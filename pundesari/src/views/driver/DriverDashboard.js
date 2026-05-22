@@ -34,7 +34,21 @@ const blueIcon = new L.Icon({
 
 function ChangeView({ center, zoom }) {
   const map = useMap();
-  map.setView(center, zoom);
+
+  useEffect(() => {
+    if (map._trackingInitialized) return;
+    map._trackingInitialized = true;
+    map._userInteracted = false;
+    const onMoveStart = () => { map._userInteracted = true; };
+    map.on('movestart', onMoveStart);
+    return () => map.off('movestart', onMoveStart);
+  }, [map]);
+
+  useEffect(() => {
+    if (!center || map._userInteracted) return;
+    map.setView(center, zoom);
+  }, [map, center, zoom]);
+
   return null;
 }
 
