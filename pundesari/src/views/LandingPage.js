@@ -50,11 +50,6 @@ const LandingPage = () => {
             <li className={activeNav === "cara-kerja" ? "active" : ""} onClick={() => scrollToSection("cara-kerja")}>Cara Kerja</li>
             <li className={activeNav === "tentang-kami" ? "active" : ""} onClick={() => scrollToSection("tentang-kami")}>Tentang Kami</li>
             <li className={activeNav === "kontak" ? "active" : ""} onClick={() => scrollToSection("kontak")}>Kontak</li>
-            <li className="mobile-login-item">
-              <button className="mobile-login-btn" onClick={() => { setMobileMenuOpen(false); history.push("/login"); }}>
-                Masuk / Daftar
-              </button>
-            </li>
           </ul>
 
           {/* Gunakan history.push untuk pindah ke halaman login */}
