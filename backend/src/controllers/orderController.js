@@ -2,7 +2,18 @@ const db = require('../db');
 const transactionService = require('../services/transactionService');
 
 exports.updateLocation = async (req, res) => {
-  const { driver_id, order_id, lat, lng } = req.body;
+  const driverId = Number(req.body.driver_id || req.user?.id);
+  const order_id = Number(req.body.order_id);
+  const lat = req.body.lat;
+  const lng = req.body.lng;
+
+  if (!driverId || !order_id || lat == null || lng == null) {
+    return res.status(400).json({ status: 'fail', message: 'driver_id, order_id, lat, lng wajib diisi' });
+  }
+
+  if (!req.user || req.user.id !== driverId) {
+    return res.status(403).json({ status: 'fail', message: 'Driver tidak sesuai atau tidak terautentikasi' });
+  }
 
   const [order] = await db.query(
     'SELECT status FROM orders WHERE id = ?',
@@ -10,58 +21,143 @@ exports.updateLocation = async (req, res) => {
   );
 
   if (!order.length || !['assigned', 'on_the_way'].includes(order[0].status)) {
-    return res.json({ message: 'Order belum aktif' });
+    return res.status(400).json({ status: 'fail', message: 'Order belum aktif' });
   }
 
   await db.query(`
     INSERT INTO driver_locations (driver_id, order_id, lat, lng)
     VALUES (?, ?, ?, ?)
-  `, [driver_id, order_id, lat, lng]);
+  `, [driverId, order_id, lat, lng]);
 
-  res.json({ message: 'Lokasi tersimpan' });
+  res.json({ status: 'success', message: 'Lokasi tersimpan' });
 };
 
 exports.acceptOrder = async (req, res) => {
-  const { driver_id } = req.body;
-  const orderId = req.params.id;
+  const driverId = Number(req.body.driver_id || req.user?.id);
+  const orderId = Number(req.params.id);
+
+  if (!orderId || !driverId) {
+    return res.status(400).json({ status: 'fail', message: 'Order id atau driver id tidak valid' });
+  }
+
+  if (!req.user || req.user.id !== driverId) {
+    return res.status(403).json({ status: 'fail', message: 'Driver tidak sesuai atau tidak terautentikasi' });
+  }
 
   const [result] = await db.query(`
     UPDATE orders
     SET driver_id = ?, status = 'assigned'
     WHERE id = ? AND status = 'pending'
-  `, [driver_id, orderId]);
+  `, [driverId, orderId]);
 
   if (result.affectedRows === 0) {
-    return res.status(400).json({ message: 'Order sudah diambil' });
+    return res.status(400).json({ status: 'fail', message: 'Order sudah diambil' });
   }
 
-  res.json({ message: 'Berhasil ambil order' });
+  res.json({ status: 'success', message: 'Berhasil ambil order' });
+};
+
+exports.rejectOrder = async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    const driverId = Number(req.body.driver_id || req.body.user_id || req.user?.id);
+
+    if (!orderId || !driverId) {
+      return res.status(400).json({ status: 'fail', message: 'order_id atau driver_id tidak valid' });
+    }
+
+    if (!req.user || req.user.id !== driverId) {
+      return res.status(403).json({ status: 'fail', message: 'Driver tidak sesuai atau tidak terautentikasi' });
+    }
+
+    if (!['driver', 'petugas'].includes(req.user.role)) {
+      return res.status(403).json({ status: 'fail', message: 'Hanya driver atau petugas yang dapat menolak order' });
+    }
+
+    // Check if order exists
+    const [orders] = await db.query('SELECT id FROM orders WHERE id = ?', [orderId]);
+    if (!orders.length) {
+      return res.status(404).json({ status: 'fail', message: 'Order tidak ditemukan' });
+    }
+
+    // Check existing rejection
+    const [existing] = await db.query(
+      `SELECT id FROM driver_rejected_orders WHERE driver_id = ? AND order_id = ?`,
+      [driverId, orderId]
+    );
+
+    if (existing.length > 0) {
+      return res.json({ status: 'success', message: 'Order sudah pernah ditolak' });
+    }
+
+    await db.query(
+      `INSERT INTO driver_rejected_orders (driver_id, order_id) VALUES (?, ?)`,
+      [driverId, orderId]
+    );
+
+    res.json({ status: 'success', message: 'Order berhasil ditolak' });
+  } catch (err) {
+    console.error('Error rejecting order:', err);
+    if (err && err.code === 'ER_DUP_ENTRY') {
+      return res.json({ status: 'success', message: 'Order sudah pernah ditolak' });
+    }
+    res.status(500).json({ status: 'error', message: 'Gagal menolak order' });
+  }
 };
 
 exports.getTracking = async (req, res) => {
   try {
-    const { order_id } = req.params;
-
-    const [locations] = await db.query(`
-      SELECT *
-      FROM driver_locations
-      WHERE order_id = ?
-      ORDER BY created_at DESC
-      LIMIT 1
-    `, [order_id]);
-
-    if (!locations.length) {
-      return res.status(404).json({
-        message: 'Lokasi tidak ditemukan'
-      });
+    const orderId = Number(req.params.order_id);
+    if (!orderId) {
+      return res.status(400).json({ status: 'fail', message: 'Order id tidak valid' });
     }
 
-    res.json(locations[0]);
+    const [orderResult] = await db.query(
+      'SELECT id, user_id, driver_id, status, user_lat, user_lng, address FROM orders WHERE id = ?',
+      [orderId]
+    );
+
+    if (orderResult.length === 0) {
+      return res.status(404).json({ status: 'fail', message: 'Order tidak ditemukan' });
+    }
+
+    const order = orderResult[0];
+
+    const [locations] = await db.query(
+      `SELECT lat, lng, created_at
+       FROM driver_locations
+       WHERE order_id = ?
+       ORDER BY created_at ASC`,
+      [orderId]
+    );
+
+    const [driverRows] = order.driver_id
+      ? await db.query('SELECT nama, nomor_hp, profile_photo FROM users WHERE id = ?', [order.driver_id])
+      : [[]];
+
+    const driverInfo = driverRows[0] || {};
+    const latestDriverLocation = locations.length ? locations[locations.length - 1] : null;
+
+    res.json({
+      status: 'success',
+      order_status: order.status,
+      driver_id: order.driver_id,
+      driver_name: driverInfo.nama || 'Petugas',
+      driver_phone: driverInfo.nomor_hp || '-',
+      driver_photo: driverInfo.profile_photo || null,
+      user_lat: order.user_lat != null ? Number(order.user_lat) : null,
+      user_lng: order.user_lng != null ? Number(order.user_lng) : null,
+      address: order.address,
+      driver_lat: latestDriverLocation ? Number(latestDriverLocation.lat) : null,
+      driver_lng: latestDriverLocation ? Number(latestDriverLocation.lng) : null,
+      locations,
+    });
 
   } catch (error) {
     console.error(error);
 
     res.status(500).json({
+      status: 'error',
       message: 'Server error'
     });
   }

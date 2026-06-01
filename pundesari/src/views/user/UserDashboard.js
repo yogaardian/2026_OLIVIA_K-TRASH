@@ -6,7 +6,7 @@ import "../../css/sidebar.css";
 import { dashboardAPI, hargaAPI } from "../../services/api";
 
 import HeroBg from "../../assets/hero.png";
-import UserAvatar from "../../assets/pp.jpg";
+import TopbarUserProfile from "../../components/TopbarUserProfile";
 
 function UserDashboard() {
   const history = useHistory();
@@ -87,28 +87,7 @@ function UserDashboard() {
         <header className="topbar">
           <div></div>
           <div className="topbar-right">
-            <div
-              className="user-profile"
-              onClick={() => history.push("/user/profile")}
-            >
-              <div className="user-avatar">
-                <img
-                  src={UserAvatar}
-                  alt="avatar"
-                />
-              </div>
-              <div className="user-info">
-                <span className="user-name">
-                  {username}
-                </span>
-                <span className="user-id">
-                  {userId}
-                </span>
-              </div>
-              <span className="dropdown-icon">
-                ▼
-              </span>
-            </div>
+            <TopbarUserProfile />
           </div>
         </header>
 

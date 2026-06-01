@@ -282,11 +282,11 @@ const LandingPage = () => {
 
           <div className="about-right">
             <div className="about-card">
-              <div className="stat-number">50K+</div>
+              <div className="stat-number">50</div>
               <div className="stat-text">Pengguna Aktif</div>
             </div>
             <div className="about-card">
-              <div className="stat-number">1000T</div>
+              <div className="stat-number">100KG</div>
               <div className="stat-text">Sampah Terolah</div>
             </div>
             <div className="about-card">

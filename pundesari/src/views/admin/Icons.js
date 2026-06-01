@@ -4,7 +4,7 @@ import "jspdf-autotable";
 import { transactionsAPI } from "../../services/api";
 
 // react-bootstrap components
-import { Button, Card, Container, Row, Col, Form, InputGroup, Table } from "react-bootstrap";
+import { Button, Card, Container, Row, Col, Form, InputGroup, Table, Modal } from "react-bootstrap";
 
 function Icons() {
   const [transactions, setTransactions] = useState([]);
@@ -12,12 +12,17 @@ function Icons() {
   const [filterType, setFilterType] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showDetail, setShowDetail] = useState(false);
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   const fetchTransactions = async (params = {}) => {
     setLoading(true);
     try {
       const response = await transactionsAPI.getTransactions(params);
       setTransactions(response.data);
+      setCurrentPage(1);
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
       setTransactions([]);
@@ -162,42 +167,108 @@ function Icons() {
                       ) : transactions.length === 0 ? (
                         <tr><td colSpan="6" className="text-center">Data Kosong</td></tr>
                       ) : (
-                        transactions.map((tx, index) => (
-                          <tr key={tx.id}>
-                            <td>{new Date(tx.created_at).toLocaleDateString()}</td>
-                            <td>{tx.user_id}</td>
-                            <td>{tx.user_name}</td>
-                            <td>{tx.type || '-'}</td>
-                            <td>Rp {tx.amount ? Number(tx.amount).toLocaleString() : '0'}</td>
-                            <td>
-                              <Button variant="success" size="sm" className="mr-2">
-                                Detail
-                              </Button>
-                              <Button variant="danger" size="sm">
-                                Hapus
-                              </Button>
-                            </td>
-                          </tr>
-                        ))
+                        (() => {
+                          const total = transactions.length;
+                          const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
+                          const startIndex = (currentPage - 1) * itemsPerPage;
+                          const pageItems = transactions.slice(startIndex, startIndex + itemsPerPage);
+                          return pageItems.map((tx, index) => (
+                            <tr key={tx.id}>
+                              <td>{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : '-'}</td>
+                              <td>{tx.user_id}</td>
+                              <td>{tx.user_name}</td>
+                              <td>{tx.type || '-'}</td>
+                              <td>Rp {tx.amount ? Number(tx.amount).toLocaleString() : '0'}</td>
+                              <td>
+                                <Button variant="success" size="sm" className="mr-2" onClick={() => {
+                                  setSelectedTx(tx);
+                                  setShowDetail(true);
+                                }}>
+                                  Detail
+                                </Button>
+                                <Button variant="danger" size="sm">
+                                  Hapus
+                                </Button>
+                              </td>
+                            </tr>
+                          ));
+                        })()
                       )}
                     </tbody>
                   </Table>
                 </div>
 
+                {/* Detail Modal */}
+                <Modal show={showDetail} onHide={() => setShowDetail(false)} size="lg">
+                  <Modal.Header closeButton>
+                    <Modal.Title>Detail Transaksi</Modal.Title>
+                  </Modal.Header>
+                  <Modal.Body>
+                    {selectedTx ? (
+                      <div>
+                        <Row>
+                          <Col md={6}>
+                            <p><strong>Tanggal:</strong> {selectedTx.created_at ? new Date(selectedTx.created_at).toLocaleString() : '-'}</p>
+                            <p><strong>Kode User:</strong> {selectedTx.user_id || '-'}</p>
+                            <p><strong>Nama:</strong> {selectedTx.user_name || '-'}</p>
+                            <p><strong>Tipe:</strong> {selectedTx.type || '-'}</p>
+                          </Col>
+                          <Col md={6}>
+                            <p><strong>Jumlah:</strong> {selectedTx.amount != null ? `Rp ${Number(selectedTx.amount).toLocaleString()}` : '-'}</p>
+                            <p><strong>Status:</strong> {selectedTx.status || '-'}</p>
+                            <p><strong>Deskripsi:</strong> {selectedTx.description || selectedTx.order_status || '-'}</p>
+                          </Col>
+                        </Row>
+                        <hr />
+                      </div>
+                    ) : (
+                      <p>Tidak ada data.</p>
+                    )}
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowDetail(false)}>Tutup</Button>
+                  </Modal.Footer>
+                </Modal>
+
                 <Row className="align-items-center mt-3">
                   <Col>
                     <nav>
                       <ul className="pagination mb-0">
-                        <li className="page-item active"><a className="page-link" href="#">1</a></li>
-                        <li className="page-item"><a className="page-link" href="#">2</a></li>
-                        <li className="page-item"><a className="page-link" href="#">3</a></li>
-                        <li className="page-item"><a className="page-link" href="#">4</a></li>
-                        <li className="page-item"><a className="page-link" href="#">&gt;</a></li>
+                        {(() => {
+                          const total = transactions.length;
+                          const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
+                          const pages = [];
+                          pages.push(
+                            <li key="prev" className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>&lt;</button>
+                            </li>
+                          );
+                          for (let p = 1; p <= totalPages; p++) {
+                            pages.push(
+                              <li key={p} className={`page-item ${p === currentPage ? 'active' : ''}`}>
+                                <button className="page-link" onClick={() => setCurrentPage(p)}>{p}</button>
+                              </li>
+                            );
+                          }
+                          pages.push(
+                            <li key="next" className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>&gt;</button>
+                            </li>
+                          );
+                          return pages;
+                        })()}
                       </ul>
                     </nav>
                   </Col>
                   <Col className="text-right">
-                    <p className="mb-0">Menampilkan 1-2 dari 120 transaksi</p>
+                    {(() => {
+                      const total = transactions.length;
+                      const startIndex = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+                      const endIndex = Math.min(total, currentPage * itemsPerPage);
+                      return (
+                        <p className="mb-0">Menampilkan {startIndex}-{endIndex} dari {total} transaksi</p>
+                      );
+                    })()}
                   </Col>
                 </Row>
               </Card.Body>

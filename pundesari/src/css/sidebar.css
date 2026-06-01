@@ -75,3 +75,62 @@
   font-size: 4rem;
   opacity: 0.1;
 }
+
+
+/* Profile nav item style (flat, no bg, icon) */
+.user-sidebar-profile-nav {
+  margin-top: 8px;
+  background: none !important;
+  color: #555;
+  font-weight: 700;
+  border-radius: 0.6rem;
+  box-shadow: none;
+  cursor: pointer;
+}
+.user-sidebar-profile-nav:hover {
+  color: #16a34a;
+  background: #f0fdf4 !important;
+}
+
+.user-sidebar-collapse-btn {
+  position: absolute;
+  top: 50%;
+  right: -18px;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(2,6,23,0.12);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.user-sidebar.collapsed {
+  width: 80px;
+}
+
+.user-sidebar.collapsed .user-sidebar-logo-text {
+  display: none;
+}
+
+.user-sidebar.collapsed .user-sidebar-item {
+  justify-content: center;
+}
+
+.user-sidebar.collapsed .user-sidebar-item-icon {
+  margin: 0;
+}
+
+.user-sidebar.collapsed .user-sidebar-item-label {
+  display: none;
+}
+
+.user-sidebar.collapsed .user-sidebar-profile-toggle {
+  width: 60px;
+  padding: 8px;
+  font-size: 0.8rem;
+}

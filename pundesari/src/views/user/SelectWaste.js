@@ -5,11 +5,13 @@ import Sidebar from "../../components/Sidebar.jsx";
 import "../../css/Dashboard.css";
 import "../../css/sidebar.css";
 import { ordersAPI } from "../../services/api";
+import { useOrder } from "../../context/OrderContext";
 
 function SelectWaste() {
   const history = useHistory();
   const username = localStorage.getItem("nama") || "User";
   const userId = localStorage.getItem("userId") || 1;
+  const { setActiveOrder } = useOrder();
 
   // Retrieve flow data from session storage
   const alamat = sessionStorage.getItem("pickup_alamat") || "Alamat tidak diketahui";
@@ -48,10 +50,22 @@ function SelectWaste() {
         user_lat: userLat ? parseFloat(userLat) : null,
         user_lng: userLng ? parseFloat(userLng) : null,
         jenis_sampah: jenisSampah.join(", "),
-        catatan: catatanLainnya
+        catatan: catatanLainnya,
       });
 
       if (response.data.status === "success") {
+        const orderPayload = {
+          id: response.data.order_id,
+          status: "searching_driver",
+          user_id: parseInt(userId),
+          address: alamat,
+          user_lat: userLat ? parseFloat(userLat) : null,
+          user_lng: userLng ? parseFloat(userLng) : null,
+          jenis_sampah: jenisSampah.join(", "),
+          catatan: catatanLainnya,
+        };
+
+        setActiveOrder(orderPayload);
         sessionStorage.setItem("current_order_id", response.data.order_id);
         history.push("/user/find-driver");
       } else {

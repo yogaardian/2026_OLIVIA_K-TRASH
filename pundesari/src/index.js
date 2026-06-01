@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom";
 
 import { BrowserRouter, Route, Switch, Redirect } from "react-router-dom";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./assets/css/animate.min.css";
@@ -13,13 +14,16 @@ import LandingPage from "views/LandingPage.js";
 import AdminLayout from "layouts/Admin.js";
 import Login from "views/Login.js";
 import Register from "views/Register.js";
+import OTPPage from "views/Otp.js";
 import LogoIcon from "./assets/LogoK-Trash.png";
 
-// IMPORT PROVIDER
-import {
-  AuthProvider,
-  DashboardProvider,
-} from "./context/AppContext";
+// ===== PROVIDERS (Correct Order) =====
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { DashboardProvider } from "./context/AppContext";
+import { SocketProvider } from "./context/SocketContext";
+import { OrderProvider } from "./context/OrderContext";
+import { NotificationProvider } from "./context/NotificationContext";
+import SearchingDriverGuard from "./components/SearchingDriverGuard.jsx";
 
 // User Flow
 import UserDashboard from "views/user/UserDashboard.js";
@@ -37,6 +41,7 @@ import Marketplace from "views/user/Marketplace.js";
 import DriverDashboard from "views/driver/DriverDashboard.js";
 import OrderDetail from "views/driver/OrderDetail.js";
 import TrackingUser from "views/driver/TrackingUser.js";
+import ProfilePetugas from "views/driver/ProfilePetugas.js";
 
 document.title = "K-Trash";
 
@@ -48,124 +53,230 @@ if (!document.querySelector("link[rel*='icon']")) {
   document.head.appendChild(faviconLink);
 }
 
+// ===== ERROR BOUNDARY =====
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '20px',
+          textAlign: 'center',
+          fontFamily: 'Arial, sans-serif'
+        }}>
+          <h1>⚠️ Error Loading Application</h1>
+          <p>{this.state.error?.message}</p>
+          <button onClick={() => window.location.reload()}>
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ===== GOOGLE OAUTH CONFIG =====
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
+if (!GOOGLE_CLIENT_ID) {
+  console.warn('⚠️ REACT_APP_GOOGLE_CLIENT_ID not set in .env file');
+}
+
+function AppWrapper({ children }) {
+  if (GOOGLE_CLIENT_ID) {
+    return (
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        {children}
+      </GoogleOAuthProvider>
+    );
+  }
+  return children;
+}
+
+// ===== REQUIRED PROVIDER HIERARCHY =====
+// 1. GoogleOAuthProvider        - OAuth support
+// 2. BrowserRouter              - router hooks (useHistory, useLocation, useNavigate)
+// 3. AuthProvider               - authentication & token management
+// 4. DashboardProvider          - depends on auth
+// 5. SocketProvider             - depends on auth for token
+// 6. OrderProvider              - depends on socket & auth
+// 7. NotificationProvider       - depends on socket
+// 8. Routes                     - all route-dependent components
+
+const ProtectedRoute = ({ component: Component, allowedRoles, ...rest }) => {
+  const { auth } = useAuth();
+
+  return (
+    <Route
+      {...rest}
+      render={(props) => {
+        if (auth.isLoading) {
+          return null;
+        }
+
+        if (!auth.isAuthenticated) {
+          return <Redirect to="/login" />;
+        }
+
+        if (allowedRoles && !allowedRoles.includes(auth.user?.role)) {
+          if (auth.user?.role === 'admin') {
+            return <Redirect to="/admin/dashboard" />;
+          }
+          if (auth.user?.role === 'driver' || auth.user?.role === 'petugas') {
+            return <Redirect to="/driver/dashboard" />;
+          }
+          if (auth.user?.role === 'user') {
+            return <Redirect to="/user/dashboard" />;
+          }
+          return <Redirect to="/login" />;
+        }
+
+        return <Component {...props} />;
+      }}
+    />
+  );
+};
+
 ReactDOM.render(
-  <AuthProvider>
-    <DashboardProvider>
+  <ErrorBoundary>
+    <AppWrapper>
       <BrowserRouter>
-        <Switch>
+        <AuthProvider>
+          <DashboardProvider>
+            <SocketProvider>
+              <OrderProvider>
+                <NotificationProvider>
+                  <Switch>
 
-          {/* Landing */}
-          <Route exact path="/" render={(props) => <LandingPage {...props} />} />
+                    {/* Landing */}
+                    <Route exact path="/" render={(props) => <LandingPage {...props} />} />
 
-          {/* Login */}
-          <Route path="/login" render={(props) => <Login {...props} />} />
+                    {/* Auth Routes */}
+                    <Route path="/login" render={(props) => <Login {...props} />} />
+                    <Route path="/Register" render={(props) => <Register {...props} />} />
+                    <Route path="/otp" render={(props) => <OTPPage {...props} />} />
 
-          <Route path="/Register" render={(props) => <Register {...props} />} />
+                    {/* User Routes */}
+                    <ProtectedRoute
+                      path="/user/dashboard"
+                      component={UserDashboard}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          {/* User Routes */}
-          <Route
-            path="/user/dashboard"
-            render={(props) => <UserDashboard {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/profile"
+                      component={Profile}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/profile"
-            render={(props) => <Profile {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/history"
+                      component={History}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/history"
-            render={(props) => <History {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/pickup"
+                      component={PickupPage}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/pickup"
-            render={(props) => <PickupPage {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/select-waste"
+                      component={SelectWaste}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/select-waste"
-            render={(props) => <SelectWaste {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/saldo"
+                      component={Saldo}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/saldo"
-            render={(props) => <Saldo {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/harga"
+                      component={HargaSampah}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/harga"
-            render={(props) => <HargaSampah {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/marketplace"
+                      component={Marketplace}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/marketplace"
-            render={(props) => <Marketplace {...props} />}
-          />
+                    <Route
+                      path="/user/notifications"
+                      render={() => <Redirect to="/user/profile" />}
+                    />
 
-          <Route
-            path="/user/notifications"
-            render={() => <Redirect to="/user/profile" />}
-          />
+                    <ProtectedRoute
+                      path="/user/find-driver"
+                      component={() => (
+                        <SearchingDriverGuard>
+                          <FindDriver />
+                        </SearchingDriverGuard>
+                      )}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/find-driver"
-            render={(props) => <FindDriver {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/user/tracking-petugas"
+                      component={TrackingPetugas}
+                      allowedRoles={['user', 'driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/user/tracking-petugas"
-            render={(props) => <TrackingPetugas {...props} />}
-          />
+                    {/* Driver Routes */}
+                    <ProtectedRoute
+                      path="/driver/dashboard"
+                      component={DriverDashboard}
+                      allowedRoles={['driver', 'petugas', 'admin']}
+                    />
 
-          {/* Driver Routes */}
-          <Route
-            path="/driver/dashboard"
-            render={(props) => <DriverDashboard {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/driver/order/:id"
+                      component={OrderDetail}
+                      allowedRoles={['driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/driver/order/:id"
-            render={(props) => <OrderDetail {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/driver/tracking-user"
+                      component={TrackingUser}
+                      allowedRoles={['driver', 'petugas', 'admin']}
+                    />
 
-          <Route
-            path="/driver/tracking-user"
-            render={(props) => <TrackingUser {...props} />}
-          />
+                    <ProtectedRoute
+                      path="/driver/profile"
+                      component={ProfilePetugas}
+                      allowedRoles={['driver', 'petugas', 'admin']}
+                    />
 
-          {/* Admin Route */}
-          <Route
-            path="/admin"
-            render={(props) => {
-              const isLogin = localStorage.getItem("isLogin");
-              const role = localStorage.getItem("role");
+                    {/* Admin Route */}
+                    <ProtectedRoute
+                      path="/admin"
+                      component={AdminLayout}
+                      allowedRoles={['admin']}
+                    />
 
-              if (!isLogin) {
-                return <Redirect to="/login" />;
-              }
-
-              if (role !== "admin") {
-                if (role === "petugas" || role === "driver") {
-                  return <Redirect to="/driver/dashboard" />;
-                }
-
-                if (role === "user") {
-                  return <Redirect to="/user/dashboard" />;
-                }
-
-                return <Redirect to="/login" />;
-              }
-
-              return <AdminLayout {...props} />;
-            }}
-          />
-
-          <Redirect from="/" to="/login" />
-        </Switch>
+                    <Redirect from="/" to="/login" />
+                  </Switch>
+                </NotificationProvider>
+              </OrderProvider>
+            </SocketProvider>
+          </DashboardProvider>
+        </AuthProvider>
       </BrowserRouter>
-    </DashboardProvider>
-  </AuthProvider>,
+    </AppWrapper>
+  </ErrorBoundary>,
 
   document.getElementById("root")
 );

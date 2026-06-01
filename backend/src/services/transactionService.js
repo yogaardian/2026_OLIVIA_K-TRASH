@@ -72,7 +72,27 @@ async function getUserTransactions(userId) {
 
 async function getPendingTransactions() {
   const [rows] = await db.query(
-    `SELECT st.*, u.nama AS user_name, u.email AS user_email, o.address, o.status as order_status
+    `SELECT
+       st.id AS transaction_id,
+       st.user_id,
+       st.order_id,
+       st.type,
+       st.amount,
+       st.status,
+       st.description,
+       st.created_by,
+       st.approved_by,
+       st.transaction_reference,
+       st.balance_before,
+       st.balance_after,
+       st.saldo_hold,
+       st.source_type,
+       st.source_id,
+       st.created_at,
+       u.nama AS user_name,
+       u.email AS user_email,
+       o.address,
+       o.status as order_status
      FROM saldo_transactions st
      JOIN users u ON st.user_id = u.id
      LEFT JOIN orders o ON st.order_id = o.id
@@ -85,7 +105,26 @@ async function getPendingTransactions() {
 
 async function getAllTransactions() {
   const [rows] = await db.query(
-    `SELECT st.*, u.nama AS user_name, o.address, o.status as order_status
+    `SELECT
+       st.id AS transaction_id,
+       st.user_id,
+       st.order_id,
+       st.type,
+       st.amount,
+       st.status,
+       st.description,
+       st.created_by,
+       st.approved_by,
+       st.transaction_reference,
+       st.balance_before,
+       st.balance_after,
+       st.saldo_hold,
+       st.source_type,
+       st.source_id,
+       st.created_at,
+       u.nama AS user_name,
+       o.address,
+       o.status as order_status
      FROM saldo_transactions st
      LEFT JOIN users u ON st.user_id = u.id
      LEFT JOIN orders o ON st.order_id = o.id

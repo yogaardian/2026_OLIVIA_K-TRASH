@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useHistory } from "react-router-dom";
 import Sidebar from "../../components/Sidebar.jsx";
 import "../../css/Dashboard.css";
 import "../../css/sidebar.css";
 import "../../css/Profile.css";
+import { loadStoredProfile, saveProfile } from "../../config/profileConfig";
+import { usersAPI } from "../../services/api";
 
 function Profile() {
   const history = useHistory();
@@ -15,26 +17,30 @@ function Profile() {
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     loadProfile();
   }, []);
 
   const loadProfile = () => {
-    const storedName = localStorage.getItem("nama") || "User";
-    const storedEmail = localStorage.getItem("email") || "user@example.com";
-    const storedPhone = localStorage.getItem("nomor_hp") || "-";
-    const storedPhoto = localStorage.getItem("profilePhoto") || null;
+    const stored = loadStoredProfile("user");
     setFormData({
-      name: storedName,
-      email: storedEmail,
-      phoneNumber: storedPhone,
+      name: stored.name,
+      email: stored.email,
+      phoneNumber: stored.phoneNumber,
     });
-    setProfilePhoto(storedPhoto);
+    setProfilePhoto(stored.profilePhoto);
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    ["token", "userId", "nama", "role"].forEach((key) => localStorage.removeItem(key));
     history.push("/login");
   };
 
@@ -45,18 +51,36 @@ function Profile() {
   const handleSave = async () => {
     setLoading(true);
     try {
+      const userId = Number(localStorage.getItem('userId')) || null;
+      if (userId) {
+        await usersAPI.updateUser(userId, {
+          nama: formData.name,
+          nomor_hp: formData.phoneNumber,
+          profile_photo: profilePhoto,
+        });
+      }
+
+      saveProfile("user", {
+        id: userId,
+        name: formData.name,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        profilePhoto,
+      });
+      // keep compatibility for current session keys
       localStorage.setItem("nama", formData.name);
       localStorage.setItem("email", formData.email);
       localStorage.setItem("nomor_hp", formData.phoneNumber);
-      if (profilePhoto) {
-        localStorage.setItem("profilePhoto", profilePhoto);
+      if (isMountedRef.current) {
+        setMessage({ type: "success", text: "✓ Profil berhasil disimpan." });
+        setTimeout(() => {
+          if (isMountedRef.current) setMessage(null);
+        }, 3000);
       }
-      setMessage({ type: "success", text: "✓ Profil berhasil disimpan." });
-      setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      setMessage({ type: "danger", text: "Gagal menyimpan profil." });
+      if (isMountedRef.current) setMessage({ type: "danger", text: "Gagal menyimpan profil." });
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 
@@ -64,7 +88,7 @@ function Profile() {
     const file = event.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setMessage({ type: "danger", text: "Ukuran foto terlalu besar (maksimal 5MB)." });
+        setMessage({ type: "danger", text: "Ukuran foto terlalu besar (maksimal 5MB sebelum dikodekan)." });
         return;
       }
       const reader = new FileReader();
@@ -78,7 +102,12 @@ function Profile() {
 
   const handleRemovePhoto = () => {
     setProfilePhoto(null);
-    localStorage.removeItem("profilePhoto");
+    saveProfile("user", {
+      name: formData.name,
+      email: formData.email,
+      phoneNumber: formData.phoneNumber,
+      profilePhoto: null,
+    });
     setMessage({ type: "info", text: "Foto profil dihapus." });
   };
 

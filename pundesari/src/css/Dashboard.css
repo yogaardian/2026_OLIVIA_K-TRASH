@@ -6,9 +6,15 @@
 
 /* MAIN */
 
+
 .dashboard-main {
   flex: 1;
   margin-left: 230px;
+  transition: margin-left 0.3s;
+}
+
+body.sidebar-collapsed .dashboard-main {
+  margin-left: 80px;
 }
 
 /* TOPBAR */

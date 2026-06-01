@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, Table, Badge, Button, Modal } from "react-bootstrap";
 import Sidebar from "../../components/Sidebar.jsx";
+import TopbarUserProfile from "../../components/TopbarUserProfile";
 import "../../css/Dashboard.css";
 import "../../css/Saldo.css";
 import { dashboardAPI } from "../../services/api";
@@ -75,16 +76,7 @@ const Saldo = () => {
         <header className="topbar">
           <div></div>
           <div className="topbar-right">
-            <div className="notif-btn">🔔</div>
-            <div className="user-profile">
-              <div className="user-avatar">
-                <img src={`https://i.pravatar.cc/150?u=${username}`} alt="avatar" />
-              </div>
-              <div className="user-info">
-                <span className="user-name">{username}</span>
-                <span className="user-id">ID: {userId}</span>
-              </div>
-            </div>
+            <TopbarUserProfile />
           </div>
         </header>
 

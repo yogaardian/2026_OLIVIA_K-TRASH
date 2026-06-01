@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar.jsx";
+import TopbarUserProfile from "../../components/TopbarUserProfile";
 import "../../css/Dashboard.css";
 import "../../css/StatusPenjemputan.css";
 import { ordersAPI } from "../../services/api";
@@ -54,15 +55,7 @@ const StatusPenjemputan = () => {
           <div></div>
           <div className="topbar-right">
             <div className="notif-btn">🔔</div>
-            <div className="user-profile">
-              <div className="user-avatar">
-                <img src="https://i.pravatar.cc/150?u=a" alt="avatar" />
-              </div>
-              <div className="user-info">
-                <span className="user-name">{localStorage.getItem("nama") || "User"}</span>
-                <span className="user-id">{localStorage.getItem("userId") || "001"}</span>
-              </div>
-            </div>
+            <TopbarUserProfile />
           </div>
         </header>
 

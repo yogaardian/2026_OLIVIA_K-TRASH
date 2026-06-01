@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { transactionsAPI } from "../../services/api";
 import { Button, Card, Form, Container, Row, Col, Table, Alert, Spinner } from "react-bootstrap";
 
@@ -15,9 +15,13 @@ function Saldo() {
   const [topupDescription, setTopupDescription] = useState("");
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
+  const hasFetchedAdminDataRef = useRef(false);
 
   useEffect(() => {
-    fetchAdminData();
+    if (!hasFetchedAdminDataRef.current) {
+      hasFetchedAdminDataRef.current = true;
+      fetchAdminData();
+    }
   }, []);
 
   const fetchAdminData = async () => {
@@ -109,6 +113,11 @@ function Saldo() {
   };
 
   const handleApprove = async (transactionId) => {
+    if (!transactionId || Number(transactionId) <= 0) {
+      setFeedback({ type: 'danger', message: 'ID transaksi tidak valid untuk approve.' });
+      return;
+    }
+
     try {
       await transactionsAPI.approveTransaction(transactionId, adminId || null);
       setFeedback({ type: 'success', message: 'Transaksi berhasil disetujui.' });
@@ -120,6 +129,11 @@ function Saldo() {
   };
 
   const handleReject = async (transactionId) => {
+    if (!transactionId || Number(transactionId) <= 0) {
+      setFeedback({ type: 'danger', message: 'ID transaksi tidak valid untuk reject.' });
+      return;
+    }
+
     try {
       await transactionsAPI.rejectTransaction(transactionId, adminId || null);
       setFeedback({ type: 'success', message: 'Transaksi berhasil ditolak.' });
@@ -245,19 +259,19 @@ function Saldo() {
                       </tr>
                     </thead>
                     <tbody>
-                      {pendingTransactions.map((tx) => (
-                        <tr key={tx.id}>
-                          <td style={{ padding: 15 }}>#{tx.id}</td>
+                      {pendingTransactions.map((tx, idx) => (
+                        <tr key={tx.transaction_id ?? tx.id ?? idx}>
+                          <td style={{ padding: 15 }}>#{tx.transaction_id ?? tx.id}</td>
                           <td style={{ padding: 15 }}>{tx.user_name}</td>
                           <td style={{ padding: 15 }}>{tx.order_id ? `#${tx.order_id}` : '-'}</td>
                           <td style={{ padding: 15 }}>Rp {Number(tx.amount).toLocaleString('id-ID')}</td>
                           <td style={{ padding: 15 }}>{tx.description || '-'}</td>
                           <td style={{ padding: 15 }}>{new Date(tx.created_at).toLocaleDateString('id-ID')}</td>
                           <td style={{ padding: 15 }}>
-                            <Button variant="success" size="sm" className="me-2" onClick={() => handleApprove(tx.id)}>
+                            <Button variant="success" size="sm" className="me-2" onClick={() => handleApprove(tx.transaction_id ?? tx.id)}>
                               Approve
                             </Button>
-                            <Button variant="danger" size="sm" onClick={() => handleReject(tx.id)}>
+                            <Button variant="danger" size="sm" onClick={() => handleReject(tx.transaction_id ?? tx.id)}>
                               Reject
                             </Button>
                           </td>
@@ -295,9 +309,9 @@ function Saldo() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactionHistory.map((tx) => (
-                        <tr key={tx.id}>
-                          <td style={{ padding: 15 }}>#{tx.id}</td>
+                      {transactionHistory.map((tx, idx) => (
+                        <tr key={tx.transaction_id ?? tx.id ?? idx}>
+                          <td style={{ padding: 15 }}>#{tx.transaction_id ?? tx.id}</td>
                           <td style={{ padding: 15 }}>{tx.user_name || '-'}</td>
                           <td style={{ padding: 15, textTransform: 'capitalize' }}>{tx.type.replace('_', ' ')}</td>
                           <td style={{ padding: 15 }}>Rp {Number(tx.amount).toLocaleString('id-ID')}</td>

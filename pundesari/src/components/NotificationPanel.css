@@ -1,0 +1,121 @@
+.notification-panel {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.notification {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideIn 0.3s ease-in-out;
+  pointer-events: all;
+  background: white;
+  border-left: 4px solid;
+}
+
+.notification-content {
+  flex: 1;
+  margin-right: 12px;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.notification-message {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: #999;
+  padding: 0;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.notification-close:hover {
+  color: #333;
+}
+
+/* Notification types */
+.notification-success {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+
+.notification-success .notification-message {
+  color: #047857;
+}
+
+.notification-error {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.notification-error .notification-message {
+  color: #991b1b;
+}
+
+.notification-warning {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.notification-warning .notification-message {
+  color: #92400e;
+}
+
+.notification-info {
+  border-left-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.notification-info .notification-message {
+  color: #1e40af;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .notification-panel {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+
+  .notification {
+    font-size: 12px;
+  }
+}

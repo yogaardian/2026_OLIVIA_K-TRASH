@@ -1,7 +1,9 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useHistory } from "react-router-dom";
-import { useAuth } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { authAPI } from "../services/api";
+import { loadStoredProfile, saveProfile } from "../config/profileConfig";
+import { GoogleLogin } from "@react-oauth/google";
 import "./css/login.css";
 import Logo from "../assets/LogoK-Trash.png";
 import BgImage from "../assets/Bgregister.png";
@@ -15,11 +17,18 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const history = useHistory();
   const { login } = useAuth();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
-    
+
     if (!email || !password) {
       setError("Isi semua data");
       return;
@@ -27,27 +36,96 @@ function Login() {
 
     setLoading(true);
     try {
-      const response = await authAPI.login(email, password);
-      
-      // Save to context
-      login(response.data.token, response.data.user);
+      const { data } = await authAPI.login(email, password);
 
-      // Redirect based on role
-      const role = response.data.user.role;
+      const userData = data.user;
+      const role = userData.role || 'user';
+      const profileRole = role === 'driver' ? 'petugas' : role;
+      const storedProfile = loadStoredProfile(profileRole);
+      const profilePhoto =
+        userData.profile_photo !== undefined && userData.profile_photo !== null
+          ? userData.profile_photo
+          : storedProfile.profilePhoto || null;
+
+      saveProfile(profileRole, {
+        id: userData.id,
+        name: userData.nama,
+        email: userData.email,
+        phoneNumber: userData.nomor_hp || "",
+        profilePhoto,
+      });
+
+      login(data.token, userData);
+
       if (role === "admin") {
         history.push("/admin/dashboard");
       } else if (role === "driver" || role === "petugas") {
         history.push("/driver/dashboard");
       } else if (role === "user") {
         history.push("/user/dashboard");
-      } else {
-        setError("Role tidak dikenali. Hubungi admin.");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Login gagal");
+      if (isMountedRef.current) {
+        setError(err.response?.data?.message || err.message || "Login gagal");
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
+  };
+
+  // ==================== GOOGLE LOGIN ====================
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const { data } = await authAPI.googleLogin(credentialResponse.credential);
+
+      if (!data || data.status !== 'success') {
+        if (isMountedRef.current) {
+          setError(data?.message || 'Google login gagal');
+        }
+        return;
+      }
+
+      if (data.status === 'success' && data.token) {
+        const userData = data.user;
+        const role = userData.role || 'user';
+        const profileRole = role === 'driver' ? 'petugas' : role;
+
+        saveProfile(profileRole, {
+          id: userData.id,
+          name: userData.nama,
+          email: userData.email,
+          phoneNumber: userData.nomor_hp || "",
+          profilePhoto: userData.profile_photo || null,
+        });
+
+        login(data.token, userData);
+
+        if (role === "admin") {
+          history.push("/admin/dashboard");
+        } else if (role === "driver" || role === "petugas") {
+          history.push("/driver/dashboard");
+        } else if (role === "user") {
+          history.push("/user/dashboard");
+        } else {
+          if (isMountedRef.current) setError("Role tidak dikenali. Hubungi admin.");
+        }
+      }
+    } catch (err) {
+      if (isMountedRef.current) {
+        const errorMsg = err.message || "Google login gagal";
+        setError(errorMsg);
+        console.error("Google login error:", err);
+      }
+    } finally {
+      if (isMountedRef.current) setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError("Gagal login dengan Google. Silakan coba lagi.");
   };
 
   return (
@@ -163,6 +241,34 @@ function Login() {
             >
               {loading ? "Memuat..." : "Masuk Sekarang"}
             </button>
+
+            {/* DIVIDER & GOOGLE LOGIN - Only show if clientId is available */}
+            {process.env.REACT_APP_GOOGLE_CLIENT_ID && (
+              <>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  margin: '24px 0',
+                  color: '#999'
+                }}>
+                  <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #ddd' }} />
+                  <span style={{ padding: '0 12px', fontSize: '12px' }}>ATAU</span>
+                  <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #ddd' }} />
+                </div>
+
+                {/* GOOGLE LOGIN */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  marginBottom: '20px'
+                }}>
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={handleGoogleError}
+                  />
+                </div>
+              </>
+            )}
 
             {/* REGISTER */}
             <div className="bottom-register">

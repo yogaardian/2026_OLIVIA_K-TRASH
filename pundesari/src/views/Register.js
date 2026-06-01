@@ -90,14 +90,13 @@ const Register = () => {
                 role: "user"
             });
 
-            if (response.data.status === "success") {
-                setSuccess("Pendaftaran berhasil! Redirecting...");
-                setTimeout(() => {
-                    history.push("/login");
-                }, 1500);
-            } else {
-                setError(response.data.message || "Pendaftaran gagal. Silakan coba lagi.");
+            if (response.data.status === "otp_sent") {
+                localStorage.setItem('otp_email', formData.email);
+                history.push('/otp');
+                return;
             }
+
+            setError(response.data.message || "Pendaftaran gagal. Silakan coba lagi.");
         } catch (err) {
             console.error(err);
             if (err.response?.data?.message) {

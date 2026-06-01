@@ -3,6 +3,7 @@
   "version": "2.0.1",
   "dependencies": {
     "@fortawesome/fontawesome-free": "5.15.2",
+    "@react-oauth/google": "0.11.0",
     "ajv": "^8.16.0",
     "axios": "^1.16.0",
     "bootstrap": "^4.6.0",
@@ -24,7 +25,8 @@
     "react-router-dom": "5.2.0",
     "react-scripts": "5.0.1",
     "reactstrap": "8.8.1",
-    "sass": "1.53.0"
+    "sass": "1.53.0",
+    "socket.io-client": "^4.8.3"
   },
   "optionalDependencies": {
     "jquery": "3.5.1",

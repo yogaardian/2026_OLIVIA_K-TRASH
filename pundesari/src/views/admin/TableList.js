@@ -262,14 +262,6 @@ function User() {
                             <td>
 
                               <Button
-                                variant="warning"
-                                size="sm"
-                                className="mr-2"
-                              >
-                                Edit
-                              </Button>
-
-                              <Button
                                 variant="danger"
                                 size="sm"
                                 onClick={() => hapusUser(user.id)}

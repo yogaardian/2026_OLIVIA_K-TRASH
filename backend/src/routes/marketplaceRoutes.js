@@ -50,7 +50,19 @@ router.post('/products/:id/order', requireRole(['user']), async (req, res) => {
     });
   } catch (err) {
     console.error('Create order error:', err);
-    res.status(400).json({ message: err.message });
+    // Map known error messages to appropriate HTTP status codes for client clarity
+    const msg = String(err.message || 'Internal server error');
+    let status = 400;
+    if (msg.includes('Product not found')) status = 404;
+    else if (msg.includes('Insufficient stock') || msg.includes('stok')) status = 409;
+    else if (msg.includes('User not found')) status = 404;
+    else if (msg.includes('Insufficient balance')) status = 402;
+    else if (msg.includes('Stock tidak mencukupi')) status = 409;
+
+    // log full stack when available
+    if (err.stack) console.error(err.stack);
+
+    return res.status(status).json({ message: msg });
   }
 });
 
