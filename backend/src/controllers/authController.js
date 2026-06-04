@@ -28,8 +28,9 @@ function getOtpExpiry() {
 
 exports.register = async (req, res) => {
   const { nama, email, password, role, nomor_hp } = req.body;
+  const normalizedPassword = String(password || '').normalize('NFC');
 
-  if (!nama || !email || !password || !role) {
+  if (!nama || !email || !normalizedPassword || !role) {
     return res.status(400).json({ status: 'error', message: 'Semua field wajib diisi' });
   }
 
@@ -39,7 +40,7 @@ exports.register = async (req, res) => {
       return res.status(409).json({ status: 'error', message: 'Email sudah terdaftar' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(normalizedPassword, SALT_ROUNDS);
     const otp = generateOTP();
     const otpExpiresAt = getOtpExpiry();
 
@@ -189,8 +190,9 @@ exports.resendRegisterOTP = async (req, res) => {
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
+  const normalizedPassword = String(password || '').normalize('NFC');
 
-  if (!email || !password) {
+  if (!email || !normalizedPassword) {
     return res.status(400).json({ status: 'error', message: 'Email dan password diperlukan' });
   }
 
@@ -202,15 +204,26 @@ exports.login = async (req, res) => {
 
     const user = users[0];
     let isValidPassword = false;
+    const passwordHash = user.password || '';
 
-    if (user.password && user.password.startsWith('$2b$')) {
-      isValidPassword = await bcrypt.compare(password, user.password);
+    const isBcryptHash = typeof passwordHash === 'string' && passwordHash.startsWith('$2');
+    if (isBcryptHash) {
+      isValidPassword = await bcrypt.compare(normalizedPassword, passwordHash);
     } else {
-      isValidPassword = password === user.password;
+      isValidPassword = normalizedPassword === passwordHash;
     }
 
     if (!isValidPassword) {
       return res.status(401).json({ status: 'error', message: 'Email atau password tidak valid' });
+    }
+
+    if (isBcryptHash && !passwordHash.startsWith('$2b$')) {
+      try {
+        const newHash = await bcrypt.hash(password, SALT_ROUNDS);
+        await db.query('UPDATE users SET password = ? WHERE id = ?', [newHash, user.id]);
+      } catch (rehashErr) {
+        console.warn('Password rehash warning:', rehashErr.message);
+      }
     }
 
     const token = jwt.sign(

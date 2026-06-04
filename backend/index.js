@@ -13,7 +13,6 @@ if (!process.env.JWT_SECRET) {
   }
 }
 const express = require('express');
-const helmet = require('helmet');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const http = require('http');
@@ -26,14 +25,11 @@ const { apiLimiter } = require('./src/middleware/rateLimiter');
 const socketAuthMiddleware = require('./src/middleware/socketAuth');
 const setupSocketHandlers = require('./src/socket/handlers');
 const socketService = require('./src/services/socketService');
-const socketEvents = require('./src/constants/socketEvents');
 const newAuthRoutes = require('./src/routes/newAuthRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
 const productRoutes = require('./src/routes/productRoutes');
-const wasteRoutes = require('./src/routes/wasteRoutes');
 
 const app = express();
-app.use(helmet());
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
@@ -68,12 +64,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use((req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  next();
-});
 app.use(apiLimiter); // General rate limiting
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -96,7 +86,6 @@ socketService.initializeSocket(io);
 
 // Routes
 app.use('/api/auth', newAuthRoutes);
-app.use('/api', wasteRoutes);
 app.use('/', orderRoutes);
 app.use('/products', productRoutes);
 app.use('/marketplace', require('./src/routes/marketplaceRoutes'));
@@ -163,85 +152,43 @@ async function seedDefaultAccounts() {
     }
   }
 
-  // Create waste master tables if not exist
+  // Create harga_sampah table if not exists
   try {
     await db.query(`
-      CREATE TABLE IF NOT EXISTS kategori_sampah (
+      CREATE TABLE IF NOT EXISTS harga_sampah (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        nama_kategori VARCHAR(100) NOT NULL UNIQUE,
-        deskripsi TEXT NULL,
+        jenis VARCHAR(50) NOT NULL,
+        sub_jenis VARCHAR(100) NOT NULL,
+        harga INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
-
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS jenis_sampah (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        kategori_id INT NOT NULL,
-        nama_jenis VARCHAR(150) NOT NULL,
-        harga_per_kg INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_jenis_per_kategori (kategori_id, nama_jenis),
-        INDEX idx_kategori_id (kategori_id),
-        CONSTRAINT fk_jenis_kategori FOREIGN KEY (kategori_id)
-          REFERENCES kategori_sampah(id)
-          ON DELETE CASCADE
-          ON UPDATE CASCADE
-      )
-    `);
-
-    const [categoryCount] = await db.query('SELECT COUNT(*) AS count FROM kategori_sampah');
-    if (categoryCount[0].count === 0) {
-      const categories = [
-        { nama_kategori: 'Organik', deskripsi: 'Sampah organik seperti sisa makanan dan daun.' },
-        { nama_kategori: 'Anorganik', deskripsi: 'Sampah anorganik seperti plastik, kaca, dan kertas.' },
-        { nama_kategori: 'Elektronik', deskripsi: 'Sampah elektronik dan kabel bekas.' },
-        { nama_kategori: 'Logam', deskripsi: 'Sampah logam seperti besi, aluminium, dan tembaga.' },
-        { nama_kategori: 'Plastik', deskripsi: 'Berbagai jenis sampah plastik.' },
+    
+    // Seed initial data if table is empty
+    const [existing] = await db.query('SELECT COUNT(*) as count FROM harga_sampah');
+    if (existing[0].count === 0) {
+      const initialData = [
+        { jenis: 'anorganik', sub_jenis: 'Botol Plastik PET', harga: 4000 },
+        { jenis: 'anorganik', sub_jenis: 'Kardus', harga: 2000 },
+        { jenis: 'anorganik', sub_jenis: 'Besi', harga: 5000 },
+        { jenis: 'anorganik', sub_jenis: 'Kaleng', harga: 4500 },
+        { jenis: 'organik', sub_jenis: 'Daun', harga: 500 },
+        { jenis: 'organik', sub_jenis: 'Sisa Makanan', harga: 300 },
+        { jenis: 'elektronik', sub_jenis: 'Kabel Bekas', harga: 2000 },
+        { jenis: 'elektronik', sub_jenis: 'Charger Bekas', harga: 1500 },
       ];
-
-      for (const category of categories) {
+      
+      for (const item of initialData) {
         await db.query(
-          'INSERT INTO kategori_sampah (nama_kategori, deskripsi) VALUES (?, ?)',
-          [category.nama_kategori, category.deskripsi]
+          'INSERT INTO harga_sampah (jenis, sub_jenis, harga) VALUES (?, ?, ?)',
+          [item.jenis, item.sub_jenis, item.harga]
         );
       }
-    }
-
-    const [typeCount] = await db.query('SELECT COUNT(*) AS count FROM jenis_sampah');
-    if (typeCount[0].count === 0) {
-      const [categories] = await db.query('SELECT id, nama_kategori FROM kategori_sampah');
-      const categoryMap = categories.reduce((acc, item) => {
-        acc[item.nama_kategori.toLowerCase()] = item.id;
-        return acc;
-      }, {});
-
-      const wasteTypes = [
-        { kategori: 'Organik', nama_jenis: 'Daun', harga_per_kg: 500 },
-        { kategori: 'Organik', nama_jenis: 'Sisa Makanan', harga_per_kg: 300 },
-        { kategori: 'Anorganik', nama_jenis: 'Botol Plastik PET', harga_per_kg: 4000 },
-        { kategori: 'Anorganik', nama_jenis: 'Kardus', harga_per_kg: 2000 },
-        { kategori: 'Anorganik', nama_jenis: 'Kaleng', harga_per_kg: 4500 },
-        { kategori: 'Elektronik', nama_jenis: 'Kabel Bekas', harga_per_kg: 2000 },
-        { kategori: 'Elektronik', nama_jenis: 'Charger Bekas', harga_per_kg: 1500 },
-        { kategori: 'Logam', nama_jenis: 'Besi', harga_per_kg: 5000 },
-        { kategori: 'Logam', nama_jenis: 'Aluminium', harga_per_kg: 15000 },
-        { kategori: 'Plastik', nama_jenis: 'Botol Plastik', harga_per_kg: 3000 },
-      ];
-
-      for (const item of wasteTypes) {
-        const categoryId = categoryMap[item.kategori.toLowerCase()];
-        if (!categoryId) continue;
-        await db.query(
-          'INSERT INTO jenis_sampah (kategori_id, nama_jenis, harga_per_kg) VALUES (?, ?, ?)',
-          [categoryId, item.nama_jenis, item.harga_per_kg]
-        );
-      }
+      console.log('Seeded harga_sampah table with initial data');
     }
   } catch (err) {
-    console.error('Error creating waste master tables:', err);
+    console.error('Error creating harga_sampah table:', err);
   }
 
   // Ensure orders table has columns needed for completed order details
@@ -715,17 +662,14 @@ app.post('/register', async (req, res) => {
 // ================= HARGA =================
 app.get('/harga/:jenis', async (req, res) => {
   try {
-    const jenis = String(req.params.jenis || '').trim();
-    const [rows] = await db.query(
-      `SELECT jt.id, jt.nama_jenis AS sub_jenis, jt.harga_per_kg AS harga
-       FROM jenis_sampah jt
-       JOIN kategori_sampah k ON jt.kategori_id = k.id
-       WHERE LOWER(k.nama_kategori) = LOWER(?)
-       ORDER BY jt.nama_jenis ASC`,
-      [jenis]
+    const jenis = req.params.jenis;
+
+    const [result] = await db.query(
+      'SELECT id, sub_jenis, harga FROM harga_sampah WHERE jenis = ?',
+      [jenis],
     );
 
-    res.json(rows);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: 'error', message: err.message });
@@ -734,53 +678,33 @@ app.get('/harga/:jenis', async (req, res) => {
 
 app.get('/harga/:jenis/:sub', async (req, res) => {
   try {
-    const jenis = String(req.params.jenis || '').trim();
-    const sub = String(req.params.sub || '').trim();
+    const jenis = req.params.jenis;
+    const sub = req.params.sub;
 
-    const [rows] = await db.query(
-      `SELECT jt.id, jt.nama_jenis AS sub_jenis, jt.harga_per_kg AS harga
-       FROM jenis_sampah jt
-       JOIN kategori_sampah k ON jt.kategori_id = k.id
-       WHERE LOWER(k.nama_kategori) = LOWER(?) AND LOWER(jt.nama_jenis) = LOWER(?)
-       ORDER BY jt.nama_jenis ASC`,
-      [jenis, sub]
+    const [result] = await db.query(
+      'SELECT id, sub_jenis, harga FROM harga_sampah WHERE jenis = ? AND sub_jenis = ?',
+      [jenis, sub],
     );
 
-    res.json(rows);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
+// POST /harga - Add new waste type
 app.post('/harga', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { jenis, sub_jenis, harga } = req.body;
+
     if (!jenis || !sub_jenis || harga == null) {
       return res.status(400).json({ status: 'fail', message: 'jenis, sub_jenis, harga wajib diisi' });
     }
 
-    const [categoryRows] = await db.query(
-      'SELECT id FROM kategori_sampah WHERE LOWER(nama_kategori) = LOWER(?)',
-      [String(jenis).trim()]
-    );
-
-    if (!categoryRows.length) {
-      return res.status(404).json({ status: 'fail', message: 'Kategori sampah tidak ditemukan' });
-    }
-
-    const kategoriId = categoryRows[0].id;
-    const [existing] = await db.query(
-      'SELECT id FROM jenis_sampah WHERE kategori_id = ? AND LOWER(nama_jenis) = LOWER(?)',
-      [kategoriId, String(sub_jenis).trim()]
-    );
-    if (existing.length) {
-      return res.status(409).json({ status: 'fail', message: 'Jenis sampah sudah ada pada kategori ini' });
-    }
-
     await db.query(
-      'INSERT INTO jenis_sampah (kategori_id, nama_jenis, harga_per_kg) VALUES (?, ?, ?)',
-      [kategoriId, String(sub_jenis).trim(), Number(harga)]
+      'INSERT INTO harga_sampah (jenis, sub_jenis, harga) VALUES (?, ?, ?)',
+      [jenis, sub_jenis, harga],
     );
 
     res.json({ status: 'success' });
@@ -790,34 +714,19 @@ app.post('/harga', authenticateToken, requireRole(['admin']), async (req, res) =
   }
 });
 
+// PUT /harga/:id - Update waste type
 app.put('/harga/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id;
     const { jenis, sub_jenis, harga } = req.body;
-    if (!id || !jenis || !sub_jenis || harga == null) {
+
+    if (!jenis || !sub_jenis || harga == null) {
       return res.status(400).json({ status: 'fail', message: 'jenis, sub_jenis, harga wajib diisi' });
     }
 
-    const [categoryRows] = await db.query(
-      'SELECT id FROM kategori_sampah WHERE LOWER(nama_kategori) = LOWER(?)',
-      [String(jenis).trim()]
-    );
-    if (!categoryRows.length) {
-      return res.status(404).json({ status: 'fail', message: 'Kategori sampah tidak ditemukan' });
-    }
-
-    const kategoriId = categoryRows[0].id;
-    const [existing] = await db.query(
-      'SELECT id FROM jenis_sampah WHERE kategori_id = ? AND LOWER(nama_jenis) = LOWER(?) AND id <> ?',
-      [kategoriId, String(sub_jenis).trim(), id]
-    );
-    if (existing.length) {
-      return res.status(409).json({ status: 'fail', message: 'Jenis sampah sudah ada pada kategori ini' });
-    }
-
     const [result] = await db.query(
-      'UPDATE jenis_sampah SET kategori_id = ?, nama_jenis = ?, harga_per_kg = ? WHERE id = ?',
-      [kategoriId, String(sub_jenis).trim(), Number(harga), id]
+      'UPDATE harga_sampah SET jenis = ?, sub_jenis = ?, harga = ? WHERE id = ?',
+      [jenis, sub_jenis, harga, id],
     );
 
     if (result.affectedRows === 0) {
@@ -831,14 +740,16 @@ app.put('/harga/:id', authenticateToken, requireRole(['admin']), async (req, res
   }
 });
 
+// DELETE /harga/:id - Delete waste type
 app.delete('/harga/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (!id) {
-      return res.status(400).json({ status: 'fail', message: 'ID tidak valid' });
-    }
+    const id = req.params.id;
 
-    const [result] = await db.query('DELETE FROM jenis_sampah WHERE id = ?', [id]);
+    const [result] = await db.query(
+      'DELETE FROM harga_sampah WHERE id = ?',
+      [id],
+    );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ status: 'fail', message: 'Harga sampah tidak ditemukan' });
     }
@@ -1115,108 +1026,25 @@ app.get('/orders/:id', authenticateToken, async (req, res) => {
 // ================= ACCEPT ORDER =================
 app.patch('/orders/accept/:id', authenticateToken, requireRole(['driver','petugas']), async (req, res) => {
   try {
-    const orderId = Number(req.params.id);
-    const driverId = Number(req.user?.id);
-    if (!orderId) return res.status(400).json({ status: 'fail', message: 'Order id tidak valid' });
+    const { driver_id } = req.body;
+    const orderId = req.params.id;
 
-    const connection = await db.getConnection();
-    try {
-      await connection.beginTransaction();
-      const [rows] = await connection.query('SELECT id, status, user_id FROM orders WHERE id = ? FOR UPDATE', [orderId]);
-      if (rows.length === 0) {
-        await connection.rollback();
-        return res.status(404).json({ status: 'fail', message: 'Order tidak ditemukan' });
-      }
-      const order = rows[0];
-      if (order.status === 'cancelled' || order.status === 'rejected') {
-        await connection.rollback();
-        return res.status(400).json({ status: 'fail', message: 'Order sudah dibatalkan oleh pengguna.' });
-      }
-      if (order.status !== 'pending' && order.status !== 'searching_driver') {
-        await connection.rollback();
-        return res.status(400).json({ status: 'fail', message: 'Order sudah diambil' });
-      }
+    const sql = `
+      UPDATE orders
+      SET driver_id = ?, status = 'assigned'
+      WHERE id = ? AND status = 'pending'
+    `;
 
-      await connection.query('UPDATE orders SET driver_id = ?, status = ? WHERE id = ?', [driverId, 'assigned', orderId]);
-      await connection.commit();
+    const [result] = await db.query(sql, [driver_id, orderId]);
 
-      // Fetch updated order state for reliable socket emits
-      const [updatedOrders] = await connection.query('SELECT * FROM orders WHERE id = ?', [orderId]);
-      const updatedOrder = updatedOrders[0] || { id: orderId, status: 'assigned', driver_id: driverId };
-
-      // Emit socket events: order accepted/assigned
-      try {
-        socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_STATE, { order: updatedOrder });
-        socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_ACCEPTED, { orderId, driverId });
-        socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_STATUS_CHANGED, { orderId, newStatus: 'assigned' });
-        // notify user directly
-        socketService.emitToUser(order.user_id, socketEvents.SERVER.ORDER_STATE, { order: updatedOrder });
-        socketService.emitToUser(order.user_id, socketEvents.SERVER.ORDER_DRIVER_ASSIGNED, { orderId, driverId });
-        // notify drivers to remove order from lists
-        socketService.emitToAllDrivers(socketEvents.SERVER.ORDER_CANCELLED, { orderId });
-      } catch (e) {
-        console.warn('Socket emit failed after accept:', e.message || e);
-      }
-
-      return res.json({ status: 'success', message: 'Berhasil ambil order' });
-    } catch (e) {
-      if (connection) await connection.rollback();
-      throw e;
-    } finally {
-      if (connection) connection.release();
+    if (result.affectedRows === 0) {
+      return res.status(400).json({ status: 'fail', message: 'Order sudah diambil' });
     }
+
+    res.json({ status: 'success' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: 'error', message: err.message });
-  }
-});
-
-// ================= CANCEL ORDER (by user) =================
-app.patch('/orders/cancel/:id', authenticateToken, async (req, res) => {
-  const orderId = Number(req.params.id);
-  const userId = Number(req.user?.id);
-  if (!orderId) return res.status(400).json({ status: 'fail', message: 'Order id tidak valid' });
-
-  const connection = await db.getConnection();
-  try {
-    await connection.beginTransaction();
-    const [rows] = await connection.query('SELECT id, status, user_id FROM orders WHERE id = ? FOR UPDATE', [orderId]);
-    if (rows.length === 0) {
-      await connection.rollback();
-      return res.status(404).json({ status: 'fail', message: 'Order tidak ditemukan' });
-    }
-    const order = rows[0];
-    if (order.user_id !== userId && req.user.role !== 'admin') {
-      await connection.rollback();
-      return res.status(403).json({ status: 'fail', message: 'Akses ditolak' });
-    }
-    if (order.status === 'cancelled' || order.status === 'rejected') {
-      await connection.rollback();
-      return res.status(400).json({ status: 'fail', message: 'Order sudah dibatalkan' });
-    }
-    // Only allow cancelling when still pending/searching
-    if (!['pending', 'searching_driver'].includes(order.status)) {
-      await connection.rollback();
-      return res.status(400).json({ status: 'fail', message: `Tidak bisa batalkan order dengan status: ${order.status}` });
-    }
-
-    await connection.query('UPDATE orders SET status = ? WHERE id = ?', ['cancelled', orderId]);
-    await connection.commit();
-
-    // Emit cancelled event to order room, user, and drivers
-    try {
-      socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_CANCELLED, { orderId });
-      socketService.emitToAllDrivers(socketEvents.SERVER.ORDER_CANCELLED, { orderId });
-      socketService.emitToUser(order.user_id, socketEvents.SERVER.ORDER_CANCELLED, { orderId });
-    } catch (e) { console.warn('Socket emit failed after cancel:', e.message || e); }
-
-    return res.json({ status: 'success', message: 'Order dibatalkan' });
-  } catch (err) {
-    if (connection) await connection.rollback();
-    console.error('Cancel order error:', err);
-    res.status(500).json({ status: 'error', message: err.message });
-  } finally {
-    if (connection) connection.release();
   }
 });
 
@@ -1224,15 +1052,12 @@ app.patch('/orders/cancel/:id', authenticateToken, async (req, res) => {
 app.patch('/orders/status/:id', authenticateToken, requireRole(['driver','petugas']), async (req, res) => {
   let connection;
   try {
-    const { status, sampah_data, total_berat, total_harga } = req.body;
+    const { driver_id, status, sampah_data, total_berat, total_harga } = req.body;
     const orderId = req.params.id;
-    const driverId = Number(req.user?.id);
-    const payloadDriverId = Number(req.body.driver_id);
-    const effectiveDriverId = Number.isInteger(payloadDriverId) && payloadDriverId > 0 ? payloadDriverId : driverId;
 
     const allowed = ['assigned', 'on_the_way', 'arrived', 'completed'];
 
-    if (!effectiveDriverId || !status) {
+    if (!driver_id || !status) {
       return res.status(400).json({ status: 'fail', message: 'driver_id dan status wajib diisi' });
     }
 
@@ -1250,7 +1075,7 @@ app.patch('/orders/status/:id', authenticateToken, requireRole(['driver','petuga
     }
 
     const order = orderResult[0];
-    if (order.driver_id !== effectiveDriverId) {
+    if (order.driver_id !== driver_id) {
       await connection.rollback();
       return res.status(403).json({ status: 'fail', message: 'Driver tidak terdaftar untuk order ini' });
     }
@@ -1287,7 +1112,7 @@ app.patch('/orders/status/:id', authenticateToken, requireRole(['driver','petuga
         orderId,
         total_harga,
         `Transaksi sampah order #${orderId}`,
-        effectiveDriverId,
+        driver_id,
       );
     } else {
       await connection.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
@@ -1338,6 +1163,69 @@ app.post('/driver/location', authenticateToken, requireRole(['driver','petugas']
     );
 
     res.json({ status: 'success', message: 'Lokasi driver tersimpan' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// ================= TRACKING =================
+app.get('/tracking/:order_id', authenticateToken, async (req, res) => {
+  try {
+    const orderId = Number(req.params.order_id);
+    if (!orderId) {
+      return res.status(400).json({ status: 'fail', message: 'Order id tidak valid' });
+    }
+
+    const [orderResult] = await db.query('SELECT id, user_id, driver_id, status, user_lat, user_lng, address FROM orders WHERE id = ?', [orderId]);
+
+    if (orderResult.length === 0) {
+      return res.status(404).json({ status: 'fail', message: 'Order tidak ditemukan' });
+    }
+
+    const order = orderResult[0];
+    if (req.user.role !== 'admin') {
+      if (req.user.role === 'user' && req.user.id !== order.user_id) {
+        return res.status(403).json({ status: 'fail', message: 'Akses ditolak' });
+      }
+      if (req.user.role === 'driver' && req.user.id !== order.driver_id) {
+        return res.status(403).json({ status: 'fail', message: 'Akses ditolak' });
+      }
+    }
+
+    const [locations] = await db.query(
+      `SELECT lat, lng, created_at
+       FROM driver_locations
+       WHERE order_id = ?
+       ORDER BY created_at ASC`,
+      [orderId],
+    );
+
+    const [driverRows] = await db.query(
+      'SELECT nama, nomor_hp, profile_photo FROM users WHERE id = ?',
+      [order.driver_id],
+    );
+
+    const driverInfo = driverRows[0] || {};
+    const latestDriverLocation = locations.length ? locations[locations.length - 1] : null;
+
+    console.log('DRIVER LOCATION:', latestDriverLocation?.lat, latestDriverLocation?.lng);
+    console.log('USER LOCATION:', order.user_lat, order.user_lng);
+
+    res.json({
+      status: 'success',
+      order_status: order.status,
+      driver_id: order.driver_id,
+      driver_name: driverInfo.nama || 'Petugas',
+      driver_phone: driverInfo.nomor_hp || '-',
+      driver_photo: driverInfo.profile_photo || null,
+      user_lat: order.user_lat ? Number(order.user_lat) : null,
+      user_lng: order.user_lng ? Number(order.user_lng) : null,
+      address: order.address,
+      driver_lat: latestDriverLocation ? Number(latestDriverLocation.lat) : null,
+      driver_lng: latestDriverLocation ? Number(latestDriverLocation.lng) : null,
+      locations: locations,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: 'error', message: err.message });

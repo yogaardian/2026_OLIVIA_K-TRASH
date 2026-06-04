@@ -4,7 +4,6 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { dashboardAPI, ordersAPI, locationAPI } from "../../services/api";
-import { useSocket } from "../../context/SocketContext";
 import { getTileLayerProps, MAP_OPTIONS, MAP_MODERN_CSS } from "../../config/mapConfig";
 import { loadStoredProfile, getProfile } from "../../config/profileConfig";
 
@@ -254,27 +253,7 @@ function DriverDashboard() {
   const [error, setError] = useState(null);
   const [acceptingOrder, setAcceptingOrder] = useState(null);
 
-  const { subscribe } = useSocket();
-
   // ── All original effects preserved ──
-  useEffect(() => {
-    if (!subscribe) return;
-    const unsubs = [];
-
-    // Remove order from list when cancelled or accepted by someone else
-    unsubs.push(subscribe('order:cancelled', (data) => {
-      if (!data?.orderId) return;
-      setOrders((prev) => prev.filter((o) => String(o.id) !== String(data.orderId)));
-    }));
-
-    unsubs.push(subscribe('order:accepted', (data) => {
-      if (!data?.orderId) return;
-      setOrders((prev) => prev.filter((o) => String(o.id) !== String(data.orderId)));
-    }));
-
-    return () => unsubs.forEach((un) => un && un());
-  }, [subscribe]);
-
   useEffect(() => {
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
@@ -325,14 +304,10 @@ function DriverDashboard() {
     try {
       setAcceptingOrder(order.id);
       const res = await ordersAPI.acceptOrder(order.id, parseInt(driverId));
-      if (res.status === 200) {
-        const acceptedOrder = { ...order, status: 'assigned', driver_id: parseInt(driverId) };
-        sessionStorage.setItem('tracking_order', JSON.stringify(acceptedOrder));
-        sessionStorage.setItem('current_order_id', acceptedOrder.id);
-        setActiveOrder(acceptedOrder);
+      if (res.data.status === "success") {
+        setActiveOrder(order);
         setOrders(orders.filter(o => o.id !== order.id));
         alert("✅ Order diterima!");
-        history.push({ pathname: `/driver/tracking-user`, state: { order: acceptedOrder } });
       } else {
         alert(res.data.message || "❌ Gagal menerima order");
       }
