@@ -336,21 +336,6 @@ const LandingPage = () => {
               <li onClick={() => alert("Halaman Syarat & Ketentuan sedang dikembangkan")}>Syarat &amp; Ketentuan</li>
             </ul>
           </div>
-
-          <div>
-            <h3>Kontak Kami</h3>
-            <ul className="contact-list">
-              <li>
-                <span className="contact-icon">📍</span> <span>Jl. Green City No. 123, Surabaya, Indonesia</span>
-              </li>
-              <li>
-                <span className="contact-icon">✉️</span> <a href="mailto:info@ktrash.id">info@ktrash.id</a>
-              </li>
-              <li>
-                <span className="contact-icon">📞</span> <a href="tel:+6281234567890">0812-3456-7890</a>
-              </li>
-            </ul>
-          </div>
         </div>
       </footer>
     </div>
