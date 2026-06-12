@@ -2,7 +2,6 @@
 
 Within the download you'll find the following directories and files:
 ```
-light-bootstrap-dashboard-react
 .
 ├── CHANGELOG.md
 ├── ISSUE_TEMPLATE.md
