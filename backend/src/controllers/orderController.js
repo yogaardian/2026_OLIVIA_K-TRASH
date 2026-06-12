@@ -1,5 +1,7 @@
 const db = require('../db');
 const transactionService = require('../services/transactionService');
+const socketService = require('../services/socketService');
+const socketEvents = require('../constants/socketEvents');
 
 exports.updateLocation = async (req, res) => {
   const { driver_id, order_id, lat, lng } = req.body;
@@ -36,6 +38,44 @@ exports.acceptOrder = async (req, res) => {
   }
 
   res.json({ message: 'Berhasil ambil order' });
+};
+
+exports.cancelOrder = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const [orders] = await db.query('SELECT status FROM orders WHERE id = ?', [orderId]);
+
+    if (!orders.length) {
+      return res.status(404).json({ message: 'Order tidak ditemukan' });
+    }
+
+    const currentStatus = orders[0].status;
+    if (currentStatus === 'cancelled') {
+      return res.status(400).json({ message: 'Order sudah dibatalkan' });
+    }
+
+    if (currentStatus === 'completed') {
+      return res.status(400).json({ message: 'Order sudah selesai dan tidak dapat dibatalkan' });
+    }
+
+    await db.query(
+      `UPDATE orders SET status = 'cancelled' WHERE id = ? AND status NOT IN ('completed', 'cancelled')`,
+      [orderId]
+    );
+
+    socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_STATE, {
+      order: { id: orderId, status: 'cancelled' },
+    });
+    socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_STATUS_CHANGED, {
+      orderId,
+      status: 'cancelled',
+    });
+
+    res.json({ status: 'success', message: 'Order berhasil dibatalkan' });
+  } catch (error) {
+    console.error('Error cancelling order:', error);
+    res.status(500).json({ status: 'error', message: 'Gagal batalkan order' });
+  }
 };
 
 exports.rejectOrder = async (req, res) => {
@@ -112,15 +152,11 @@ exports.completeOrder = async (req, res) => {
     const orderId = req.params.id;
     const { driver_id, status, sampah_data, total_berat, total_harga } = req.body;
 
-    if (status !== 'completed') {
-      return res.status(400).json({ message: 'Status harus completed' });
+    const allowedStatuses = ['on_the_way', 'arrived', 'completed'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Status tidak valid' });
     }
 
-    if (!total_harga || total_harga <= 0) {
-      return res.status(400).json({ message: 'Total harga harus lebih dari 0' });
-    }
-
-    // Get order details including user_id
     const [orders] = await db.query(
       'SELECT user_id FROM orders WHERE id = ?',
       [orderId]
@@ -132,30 +168,49 @@ exports.completeOrder = async (req, res) => {
 
     const userId = orders[0].user_id;
 
-    // Update order status to completed with sampah data
-    await db.query(
-      `UPDATE orders 
-       SET status = ?, driver_id = ?, sampah_data = ?, total_berat = ?, total_harga = ?
+    if (status === 'completed') {
+      if (!total_harga || total_harga <= 0) {
+        return res.status(400).json({ message: 'Total harga harus lebih dari 0' });
+      }
+
+      // Update order status to completed with sampah data
+      await db.query(
+        `UPDATE orders 
+         SET status = ?, driver_id = ?, sampah_data = ?, total_berat = ?, total_harga = ?
+         WHERE id = ?`,
+        ['completed', driver_id, JSON.stringify(sampah_data), total_berat, total_harga, orderId]
+      );
+
+      // Create pending transaction for admin approval
+      const description = `Penimbangan sampah: ${total_berat}kg, Harga: Rp${total_harga}`;
+      const transactionId = await transactionService.createPendingTransaction(
+        userId,
+        orderId,
+        total_harga,
+        description,
+        driver_id
+      );
+
+      return res.json({
+        status: 'success',
+        message: 'Data sampah berhasil dikirim ke admin untuk konfirmasi',
+        transaction_id: transactionId,
+        order_id: orderId
+      });
+    }
+
+    const [result] = await db.query(
+      `UPDATE orders
+       SET status = ?, driver_id = ?
        WHERE id = ?`,
-      ['completed', driver_id, JSON.stringify(sampah_data), total_berat, total_harga, orderId]
+      [status, driver_id, orderId]
     );
 
-    // Create pending transaction for admin approval
-    const description = `Penimbangan sampah: ${total_berat}kg, Harga: Rp${total_harga}`;
-    const transactionId = await transactionService.createPendingTransaction(
-      userId,
-      orderId,
-      total_harga,
-      description,
-      driver_id
-    );
+    if (result.affectedRows === 0) {
+      return res.status(400).json({ status: 'fail', message: 'Gagal update status order' });
+    }
 
-    res.json({
-      status: 'success',
-      message: 'Data sampah berhasil dikirim ke admin untuk konfirmasi',
-      transaction_id: transactionId,
-      order_id: orderId
-    });
+    res.json({ status: 'success', message: `Status order diperbarui menjadi ${status}` });
 
   } catch (error) {
     console.error('Error completing order:', error);

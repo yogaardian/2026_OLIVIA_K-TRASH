@@ -80,20 +80,21 @@ function SelectWaste() {
   };
 
   const CategoryItem = ({ title, value, onChange }) => (
-    <div className="mb-3 d-flex align-items-center">
-      <Form.Check 
-        type="checkbox" 
-        checked={value} 
-        onChange={(e) => onChange(e.target.checked)}
-        className="mr-3"
-        style={{ transform: "scale(1.5)" }}
-      />
-      <div 
-        className="flex-grow-1 p-3" 
-        style={{ backgroundColor: "#D1E4FF", borderRadius: "12px", display: "flex", alignItems: "center" }}
-      >
-        <i className="nc-icon nc-box-2 text-success mr-3" style={{ fontSize: "24px" }}></i>
-        <span style={{ fontWeight: "bold" }}>{title}</span>
+    <div style={styles.categoryRow}>
+      <div style={styles.checkboxWrapper}>
+        <Form.Check
+          type="checkbox"
+          checked={value}
+          onChange={(e) => onChange(e.target.checked)}
+          style={styles.checkbox}
+        />
+      </div>
+      <div style={styles.categoryCard}>
+        <i
+          className="nc-icon nc-box-2 text-success"
+          style={styles.categoryIcon}
+        ></i>
+        <span style={styles.categoryLabel}>{title}</span>
       </div>
     </div>
   );
@@ -101,74 +102,289 @@ function SelectWaste() {
   return (
     <div className="dashboard-layout">
       <Sidebar />
-      <main className="dashboard-main">
-        <div style={{ backgroundColor: "#FFFFFF", minHeight: "100vh" }}>
-          <Container className="py-4">
-        <div className="d-flex align-items-center mb-4">
-          <i 
-            className="nc-icon nc-minimal-left" 
-            style={{ fontSize: "24px", cursor: "pointer", marginRight: "15px" }}
-            onClick={() => history.goBack()}
-          ></i>
-          <div>
-            <h5 style={{ fontWeight: "bold", margin: 0 }}>Halo {username}</h5>
-            <small className="text-muted">daur ulang sampahmu yuk!</small>
+      <main className="dashboard-main" style={styles.main}>
+
+        {/* ── Hero Header ── */}
+        <div style={styles.heroHeader}>
+          <div style={styles.heroInner}>
+            <div>
+              <h5 style={styles.heroTitle}>Halo {username} 👋</h5>
+              <p style={styles.heroSubtitle}>Daur ulang sampahmu yuk!</p>
+            </div>
           </div>
         </div>
 
-        <h6 style={{ fontWeight: "bold" }}>📍 Alamat Penjemputan</h6>
-        <Card style={{ borderRadius: "12px", border: "1px solid #ddd", boxShadow: "none", marginBottom: "30px" }}>
-          <Card.Body className="p-3">
-            <span style={{ fontSize: "14px", color: "#555" }}>{alamat}</span>
-          </Card.Body>
-        </Card>
+        {/* ── Content Area ── */}
+        <div style={styles.contentArea}>
+          <Container style={styles.container}>
 
-        <h5 className="text-center mb-4" style={{ fontWeight: "bold" }}>Pilih Jenis Sampahmu</h5>
+            {/* Alamat */}
+            <div style={styles.sectionLabel}>
+              <span style={styles.sectionLabelText}>📍 Alamat Penjemputan</span>
+            </div>
+            <Card style={styles.addressCard}>
+              <Card.Body style={styles.addressCardBody}>
+                <i
+                  className="nc-icon nc-pin-3"
+                  style={styles.addressIcon}
+                ></i>
+                <span style={styles.addressText}>{alamat}</span>
+              </Card.Body>
+            </Card>
 
-        <CategoryItem title="Sampah Organik" value={isOrganik} onChange={setIsOrganik} />
-        <CategoryItem title="Sampah Anorganik" value={isAnorganik} onChange={setIsAnorganik} />
-        <CategoryItem title="Sampah Lainnya" value={isLainnya} onChange={setIsLainnya} />
+            {/* Pilih Jenis */}
+            <h5 style={styles.sectionTitle}>Pilih Jenis Sampahmu</h5>
 
-        <h6 className="mt-4 mb-2" style={{ fontWeight: "bold" }}>Catatan Untuk Sampah Lainnya</h6>
-        <Form.Group className="mb-5">
-          <Form.Control 
-            type="text" 
-            placeholder="Tambahkan catatan" 
-            value={catatanLainnya}
-            onChange={(e) => setCatatanLainnya(e.target.value)}
-            style={{ borderRadius: "12px" }}
-          />
-        </Form.Group>
+            <CategoryItem title="Sampah Organik"   value={isOrganik}   onChange={setIsOrganik} />
+            <CategoryItem title="Sampah Anorganik" value={isAnorganik} onChange={setIsAnorganik} />
+            <CategoryItem title="Sampah Lainnya"   value={isLainnya}   onChange={setIsLainnya} />
 
-        <Row>
-          <Col>
-            <Button 
-              variant="outline-success" 
-              className="w-100" 
-              style={{ borderRadius: "20px" }}
-              onClick={() => history.goBack()}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-          </Col>
-          <Col>
-            <Button 
-              variant="success" 
-              className="w-100" 
-              style={{ borderRadius: "20px" }}
-              onClick={handleCreateOrder}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Loading..." : "Berikutnya"}
-            </Button>
-          </Col>
-        </Row>
-      </Container>
+            {/* Catatan */}
+            <div style={styles.sectionLabel}>
+              <span style={styles.sectionLabelText}>📝 Catatan Untuk Sampah Lainnya</span>
+            </div>
+            <Form.Group style={styles.formGroup}>
+              <Form.Control
+                type="text"
+                placeholder="Tambahkan catatan (opsional)"
+                value={catatanLainnya}
+                onChange={(e) => setCatatanLainnya(e.target.value)}
+                style={styles.textInput}
+              />
+            </Form.Group>
+
+            {/* Action Buttons */}
+            <Row style={styles.buttonRow}>
+              <Col xs={6} style={{ paddingRight: "6px" }}>
+                <Button
+                  variant="outline-success"
+                  className="w-100"
+                  style={styles.btnCancel}
+                  onClick={() => history.goBack()}
+                  disabled={isSubmitting}
+                >
+                  Batal
+                </Button>
+              </Col>
+              <Col xs={6} style={{ paddingLeft: "6px" }}>
+                <Button
+                  variant="success"
+                  className="w-100"
+                  style={styles.btnNext}
+                  onClick={handleCreateOrder}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Loading...
+                    </>
+                  ) : (
+                    "Berikutnya →"
+                  )}
+                </Button>
+              </Col>
+            </Row>
+
+          </Container>
         </div>
       </main>
     </div>
   );
 }
+
+/* ─────────────────────────────────────────
+   Inline Styles — UI only, no logic change
+───────────────────────────────────────── */
+const BRAND_GRADIENT =
+  "linear-gradient(135deg, rgb(102,178,130) 0%, rgb(21,128,61) 60%, rgb(20,83,45) 100%)";
+
+const styles = {
+  /* layout */
+  main: {
+    backgroundColor: "#f5f7f5",
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  /* hero */
+  heroHeader: {
+    background: BRAND_GRADIENT,
+    padding: "clamp(16px, 4vw, 28px) clamp(16px, 5vw, 32px)",
+    paddingBottom: "clamp(24px, 5vw, 36px)",
+  },
+  heroInner: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    maxWidth: "720px",
+    margin: "0 auto",
+    width: "100%",
+  },
+  backBtn: {
+    background: "rgba(255,255,255,0.2)",
+    border: "none",
+    borderRadius: "10px",
+    width: "40px",
+    height: "40px",
+    minWidth: "40px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#fff",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  heroTitle: {
+    color: "#fff",
+    fontWeight: "700",
+    margin: 0,
+    fontSize: "clamp(16px, 4vw, 20px)",
+    lineHeight: 1.3,
+  },
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.85)",
+    margin: 0,
+    fontSize: "clamp(12px, 3vw, 14px)",
+  },
+
+  /* content */
+  contentArea: {
+    flex: 1,
+    paddingTop: "clamp(16px, 4vw, 28px)",
+    paddingBottom: "clamp(24px, 6vw, 40px)",
+  },
+  container: {
+    maxWidth: "720px",
+    padding: "0 clamp(12px, 4vw, 24px)",
+  },
+
+  /* address card */
+  sectionLabel: {
+    marginBottom: "8px",
+  },
+  sectionLabelText: {
+    fontWeight: "700",
+    fontSize: "clamp(13px, 3.5vw, 15px)",
+    color: "#1e4d2b",
+  },
+  addressCard: {
+    borderRadius: "14px",
+    border: "1px solid #d4e8d4",
+    boxShadow: "0 2px 8px rgba(21,128,61,0.08)",
+    marginBottom: "24px",
+    overflow: "hidden",
+  },
+  addressCardBody: {
+    padding: "clamp(12px, 3vw, 16px)",
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "10px",
+  },
+  addressIcon: {
+    fontSize: "18px",
+    color: "#15803d",
+    flexShrink: 0,
+    marginTop: "2px",
+  },
+  addressText: {
+    fontSize: "clamp(12px, 3.5vw, 14px)",
+    color: "#444",
+    lineHeight: 1.5,
+  },
+
+  /* section title */
+  sectionTitle: {
+    fontWeight: "700",
+    textAlign: "center",
+    fontSize: "clamp(15px, 4vw, 18px)",
+    color: "#1e4d2b",
+    marginBottom: "16px",
+  },
+
+  /* category item */
+  categoryRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "12px",
+  },
+  checkboxWrapper: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "44px",
+    height: "44px",
+    flexShrink: 0,
+  },
+  checkbox: {
+    width: "22px",
+    height: "22px",
+    cursor: "pointer",
+    accentColor: "#15803d",
+  },
+  categoryCard: {
+    flex: 1,
+    backgroundColor: "#dbeafe",
+    borderRadius: "12px",
+    padding: "clamp(12px, 3vw, 16px)",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    minHeight: "52px",
+  },
+  categoryIcon: {
+    fontSize: "clamp(20px, 5vw, 26px)",
+    flexShrink: 0,
+  },
+  categoryLabel: {
+    fontWeight: "600",
+    fontSize: "clamp(13px, 3.5vw, 15px)",
+    color: "#1e3a5f",
+  },
+
+  /* catatan */
+  formGroup: {
+    marginBottom: "28px",
+  },
+  textInput: {
+    borderRadius: "12px",
+    padding: "clamp(10px, 2.5vw, 13px) 14px",
+    fontSize: "clamp(13px, 3.5vw, 15px)",
+    border: "1px solid #c8dfc8",
+    backgroundColor: "#fff",
+    width: "100%",
+  },
+
+  /* buttons */
+  buttonRow: {
+    marginTop: "4px",
+  },
+  btnCancel: {
+    borderRadius: "22px",
+    minHeight: "48px",
+    fontWeight: "600",
+    fontSize: "clamp(13px, 3.5vw, 15px)",
+    borderColor: "#15803d",
+    color: "#15803d",
+  },
+  btnNext: {
+    borderRadius: "22px",
+    minHeight: "48px",
+    fontWeight: "600",
+    fontSize: "clamp(13px, 3.5vw, 15px)",
+    background: BRAND_GRADIENT,
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+  },
+};
 
 export default SelectWaste;

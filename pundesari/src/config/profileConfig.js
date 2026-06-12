@@ -156,7 +156,7 @@ export const loadProfileFromOrder = (order, role = "user") => {
 export const getProfile = (role = "user", order = null) => {
   const orderProfile = loadProfileFromOrder(order, role);
   const storedProfile = loadStoredProfile(role);
-  if (orderProfile && orderProfile.name && orderProfile.name !== (role === "user" ? (order.user_id ? `User #${order.user_id}` : null) : (order.driver_id ? `Petugas #${order.driver_id}` : null))) {
+  if (orderProfile && orderProfile.name) {
     return {
       name: orderProfile.name,
       email: orderProfile.email || storedProfile.email,

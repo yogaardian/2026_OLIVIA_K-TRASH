@@ -278,8 +278,8 @@ exports.googleLogin = async (req, res) => {
   try {
     const { credential } = req.body;
 
-    if (!credential) {
-      return res.status(400).json({ status: 'error', message: 'Credential required' });
+    if (!credential || typeof credential !== 'string' || !credential.trim()) {
+      return res.status(400).json({ status: 'error', message: 'Credential Google diperlukan' });
     }
 
     const ticket = await googleClient.verifyIdToken({
@@ -328,6 +328,9 @@ exports.googleLogin = async (req, res) => {
     });
   } catch (err) {
     console.error('Google login error:', err);
-    return res.status(500).json({ status: 'error', message: 'Google login gagal', error: err.message });
+    const isAuthError = /Wrong number of segments|invalid token|Invalid token|Token used too late|Wrong number of segments/i.test(err.message || '');
+    const statusCode = isAuthError ? 401 : 500;
+    const message = isAuthError ? 'Google credential tidak valid' : 'Google login gagal';
+    return res.status(statusCode).json({ status: 'error', message, error: err.message });
   }
 };

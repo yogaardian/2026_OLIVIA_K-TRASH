@@ -87,7 +87,7 @@ router.post('/topup', async (req, res) => {
 router.get('/settings/hold-balance', async (req, res) => {
   try {
     const amount = await transactionService.getMinimumHoldBalance();
-    res.json({ amount });
+    res.json({ minimum_hold_balance: amount });
   } catch (err) {
     console.error('Get hold balance error:', err);
     res.status(500).json({ message: 'Internal server error' });
@@ -105,7 +105,7 @@ router.patch('/settings/hold-balance', async (req, res) => {
     const newAmount = await transactionService.setMinimumHoldBalance(amount);
     res.json({
       message: 'Hold balance updated successfully',
-      amount: newAmount
+      minimum_hold_balance: newAmount
     });
   } catch (err) {
     console.error('Set hold balance error:', err);

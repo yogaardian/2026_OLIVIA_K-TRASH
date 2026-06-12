@@ -17,9 +17,29 @@ body.sidebar-collapsed .dashboard-main {
   margin-left: 80px;
 }
 
+@media (max-width: 1024px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .dashboard-main {
+    margin-left: 0;
+  }
+
+  body.sidebar-collapsed .dashboard-main {
+    margin-left: 0;
+  }
+
+  .topbar {
+    padding-left: 80px;
+    padding-right: 20px;
+  }
+}
+
 /* TOPBAR */
 
 .topbar {
+  width: 100%;
   height: 75px;
   background: white;
   border-bottom: 1px solid #edf2ee;
@@ -35,10 +55,15 @@ body.sidebar-collapsed .dashboard-main {
   z-index: 100;
 }
 
+.topbar > div:first-child {
+  min-width: 44px;
+}
+
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 20px;
+  margin-left: auto;
 }
 
 .notif-btn {

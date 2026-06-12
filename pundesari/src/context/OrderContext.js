@@ -239,12 +239,15 @@ export const OrderProvider = ({ children }) => {
   const cancelOrder = useCallback(async () => {
     if (!state.activeOrder?.id) return;
     try {
-      await ordersAPI.cancelOrder(state.activeOrder.id);
-    } catch (error) {
-      console.error('Cancel order failed:', error);
-    } finally {
+      const response = await ordersAPI.cancelOrder(state.activeOrder.id);
+      if (response?.status !== 200 && response?.data?.status !== 'success') {
+        console.error('Cancel order failed:', response?.data || response);
+        return;
+      }
       clearActiveOrder();
       history.replace('/user/dashboard');
+    } catch (error) {
+      console.error('Cancel order failed:', error);
     }
   }, [clearActiveOrder, history, state.activeOrder]);
 

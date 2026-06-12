@@ -14,12 +14,38 @@ const initializeSocket = (socketIoInstance) => {
 
 const getIO = () => io;
 
+const isValidEventName = (event) => typeof event === 'string' && event.trim().length > 0;
+
+const safeEmit = (socketTarget, event, data, targetDescription) => {
+  if (!io || !socketTarget) return;
+  if (!isValidEventName(event)) {
+    console.error('[SOCKET INVALID EVENT]', {
+      eventName: event,
+      payload: data,
+      target: targetDescription,
+    });
+    return;
+  }
+
+  console.log('[SOCKET EMIT]', {
+    eventName: event,
+    target: targetDescription,
+    payload: data,
+  });
+  socketTarget.emit(event, data);
+};
+
 /**
  * Emit event to a specific user
  */
 const emitToUser = (userId, event, data) => {
   if (!io) return;
-  io.to(`${socketEvents.ROOMS.USER_PREFIX}${userId}`).emit(event, data);
+  safeEmit(
+    io.to(`${socketEvents.ROOMS.USER_PREFIX}${userId}`),
+    event,
+    data,
+    `user:${userId}`
+  );
 };
 
 /**
@@ -27,7 +53,12 @@ const emitToUser = (userId, event, data) => {
  */
 const emitToDriver = (driverId, event, data) => {
   if (!io) return;
-  io.to(`${socketEvents.ROOMS.DRIVER_PREFIX}${driverId}`).emit(event, data);
+  safeEmit(
+    io.to(`${socketEvents.ROOMS.DRIVER_PREFIX}${driverId}`),
+    event,
+    data,
+    `driver:${driverId}`
+  );
 };
 
 /**
@@ -35,7 +66,12 @@ const emitToDriver = (driverId, event, data) => {
  */
 const emitToOrder = (orderId, event, data) => {
   if (!io) return;
-  io.to(`${socketEvents.ROOMS.ORDER_PREFIX}${orderId}`).emit(event, data);
+  safeEmit(
+    io.to(`${socketEvents.ROOMS.ORDER_PREFIX}${orderId}`),
+    event,
+    data,
+    `order:${orderId}`
+  );
 };
 
 /**
@@ -43,7 +79,12 @@ const emitToOrder = (orderId, event, data) => {
  */
 const emitToAllDrivers = (event, data) => {
   if (!io) return;
-  io.to(socketEvents.ROOMS.DRIVERS).emit(event, data);
+  safeEmit(
+    io.to(socketEvents.ROOMS.DRIVERS),
+    event,
+    data,
+    'room:drivers'
+  );
 };
 
 /**
@@ -51,7 +92,12 @@ const emitToAllDrivers = (event, data) => {
  */
 const emitToAllUsers = (event, data) => {
   if (!io) return;
-  io.to(socketEvents.ROOMS.USERS).emit(event, data);
+  safeEmit(
+    io.to(socketEvents.ROOMS.USERS),
+    event,
+    data,
+    'room:users'
+  );
 };
 
 /**
@@ -59,7 +105,12 @@ const emitToAllUsers = (event, data) => {
  */
 const emitToAllAdmins = (event, data) => {
   if (!io) return;
-  io.to(socketEvents.ROOMS.ADMIN).emit(event, data);
+  safeEmit(
+    io.to(socketEvents.ROOMS.ADMIN),
+    event,
+    data,
+    'room:admin'
+  );
 };
 
 /**
@@ -67,7 +118,7 @@ const emitToAllAdmins = (event, data) => {
  */
 const emitToAll = (event, data) => {
   if (!io) return;
-  io.emit(event, data);
+  safeEmit(io, event, data, 'broadcast:all');
 };
 
 /**

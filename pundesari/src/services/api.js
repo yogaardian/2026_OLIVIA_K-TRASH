@@ -30,6 +30,7 @@ export const authAPI = {
   verifyRegister: (data) => apiClient.post('/api/auth/register/verify', data),
   resendRegisterOtp: (data) => apiClient.post('/api/auth/register/resend', data),
   googleLogin: (credential) => apiClient.post('/api/auth/google-login', { credential }),
+  validateToken: () => apiClient.post('/api/auth/validate-token'),
 };
 
 
@@ -62,6 +63,9 @@ export const ordersAPI = {
   acceptOrder: (orderId, driverId) => apiClient.patch(`/orders/accept/${orderId}`, {
     driver_id: driverId,
   }),
+  
+  // Cancel order (user)
+  cancelOrder: (orderId) => apiClient.patch(`/orders/${orderId}/cancel`),
   
   // Reject order (driver) - per-driver rejection persisted in DB
   rejectOrder: (orderId, driverId) => apiClient.post(`/orders/${orderId}/reject`, {

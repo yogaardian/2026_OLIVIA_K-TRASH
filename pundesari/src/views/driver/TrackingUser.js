@@ -4,6 +4,7 @@ import { Form, Row, Col } from "react-bootstrap";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import { hargaAPI, locationAPI, ordersAPI } from "../../services/api";
+import { useSocket } from "../../context/SocketContext";
 import { getTileLayerProps, MAP_OPTIONS, MAP_MODERN_CSS } from "../../config/mapConfig";
 import { getProfile } from "../../config/profileConfig";
 
@@ -64,6 +65,7 @@ function FitRouteBounds({ driverLocation, userLocation, routeGeoJson, forceFit =
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
       hasFittedRef.current = true;
     }
+    console.log("[EFFECT RUN]", "fitbounds");
   }, [map, routeGeoJson, driverLocation, userLocation, forceFit]);
   return null;
 }
@@ -101,17 +103,17 @@ const T = {
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  assigned: { label: "Assigned", color: T.blue, bg: "rgba(59,130,246,0.1)", step: 0 },
-  on_the_way: { label: "Menuju User", color: T.green500, bg: T.greenGlow, step: 1 },
+  assigned: { label: "Petugas Ditugaskan", color: T.blue, bg: "rgba(59,130,246,0.1)", step: 0 },
+  on_the_way: { label: "Menuju Lokasi", color: T.green500, bg: T.greenGlow, step: 1 },
   arrived: { label: "Tiba di Lokasi", color: T.amber, bg: T.amberGlow, step: 2 },
   completed: { label: "Selesai", color: T.green600, bg: T.greenGlow2, step: 3 },
 };
 
-const STEPS = ["Assigned", "On The Way", "Arrived", "Completed"];
+const STEPS = ["Ditugaskan", "Menuju Lokasi", "Tiba", "Selesai"];
 
 // ─── UI Sub-components ────────────────────────────────────────────────────────
 
-function StatusStepper({ status }) {
+const StatusStepper = React.memo(function StatusStepper({ status }) {
   const activeStep = STATUS_CONFIG[status]?.step ?? 0;
   return (
     <div style={S.stepper}>
@@ -132,7 +134,7 @@ function StatusStepper({ status }) {
                   : <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#fff" : "rgba(0,0,0,0.2)", display: "block" }} />
                 }
               </div>
-              <div style={{ ...S.stepLabel, color: active ? T.green700 : done ? T.green600 : T.textXsoft, fontWeight: active ? 700 : done ? 600 : 400 }}>
+              <div className="step-label" style={{ ...S.stepLabel, color: active ? T.green700 : done ? T.green600 : T.textXsoft, fontWeight: active ? 700 : done ? 600 : 400 }}>
                 {label}
               </div>
             </div>
@@ -144,9 +146,9 @@ function StatusStepper({ status }) {
       })}
     </div>
   );
-}
+});
 
-function CustomerCard({ order, driverName, driverId, orderStatus, customerProfile, driverProfile }) {
+const CustomerCard = React.memo(function CustomerCard({ order, driverName, driverId, orderStatus, customerProfile, driverProfile }) {
   const cfg = STATUS_CONFIG[orderStatus] || STATUS_CONFIG.assigned;
   const displayName = customerProfile?.name || (order?.user_id ? `User #${order.user_id}` : "User");
   return (
@@ -170,7 +172,7 @@ function CustomerCard({ order, driverName, driverId, orderStatus, customerProfil
           <div style={S.customerName}>{displayName}</div>
           <div style={S.customerAddress}>{order?.address || "—"}</div>
         </div>
-        <div style={{ ...S.statusPill, background: cfg.bg, color: cfg.color, borderColor: cfg.color + "44" }}>
+        <div className="status-pill" style={{ ...S.statusPill, background: cfg.bg, color: cfg.color, borderColor: cfg.color + "44" }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.color, display: "inline-block", marginRight: 5, boxShadow: `0 0 0 3px ${cfg.color}22` }} />
           {cfg.label}
         </div>
@@ -196,20 +198,20 @@ function CustomerCard({ order, driverName, driverId, orderStatus, customerProfil
       </div>
     </div>
   );
-}
+});
 
-function MapOverlay({ orderStatus, driverLocation, order }) {
+const MapOverlay = React.memo(function MapOverlay({ orderStatus, driverLocation, order }) {
   const cfg = STATUS_CONFIG[orderStatus] || STATUS_CONFIG.assigned;
   return (
     <>
       {/* Top: status floating badge */}
-      <div style={S.mapBadge}>
+      <div className="map-badge" style={S.mapBadge}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.color, display: "inline-block", flexShrink: 0, boxShadow: `0 0 0 4px ${cfg.color}33`, animation: "ecoPulse 2s infinite" }} />
         <span style={{ fontSize: 12, fontWeight: 700, color: cfg.color, letterSpacing: "0.04em" }}>{cfg.label}</span>
       </div>
 
       {/* Top right: order ID */}
-      <div style={S.mapOrderChip}>
+      <div className="map-order-chip" style={S.mapOrderChip}>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
         </svg>
@@ -218,16 +220,16 @@ function MapOverlay({ orderStatus, driverLocation, order }) {
 
       {/* Bottom debug chip */}
       {driverLocation && (
-        <div style={S.mapDebugChip}>
+        <div className="map-debug-chip" style={S.mapDebugChip}>
           <span style={{ color: T.blue, fontWeight: 700, marginRight: 4 }}>GPS</span>
           {driverLocation[0].toFixed(5)}, {driverLocation[1].toFixed(5)}
         </div>
       )}
     </>
   );
-}
+});
 
-function SampahCategoryBlock({ kategori, items, sampahData, onInputChange }) {
+const SampahCategoryBlock = React.memo(function SampahCategoryBlock({ kategori, items, sampahData, onInputChange }) {
   const [open, setOpen] = useState(true);
   const catColors = { organik: "#22c55e", anorganik: "#3b82f6", lainnya: "#f59e0b" };
   const color = catColors[kategori] || T.green500;
@@ -269,6 +271,7 @@ function SampahCategoryBlock({ kategori, items, sampahData, onInputChange }) {
                   </div>
                   <div style={S.sampahInputWrap}>
                     <input
+                      className="sampah-input"
                       type="number"
                       placeholder="0"
                       value={val || ""}
@@ -287,20 +290,20 @@ function SampahCategoryBlock({ kategori, items, sampahData, onInputChange }) {
       )}
     </div>
   );
-}
+});
 
-function SummaryCard({ totalBerat, totalHarga, onSubmit, submitting, loadingPrice }) {
+const SummaryCard = React.memo(function SummaryCard({ totalBerat, totalHarga, onSubmit, submitting, loadingPrice }) {
   return (
     <div style={S.summaryCard}>
       <div style={S.summaryRow}>
         <div style={S.summaryItem}>
           <div style={S.summaryLabel}>Total Berat</div>
-          <div style={S.summaryValue}>{totalBerat.toFixed(2)} <span style={S.summaryUnit}>kg</span></div>
+          <div className="summary-value" style={S.summaryValue}>{totalBerat.toFixed(2)} <span style={S.summaryUnit}>kg</span></div>
         </div>
         <div style={{ width: 1, background: T.border, alignSelf: "stretch" }} />
         <div style={{ ...S.summaryItem, textAlign: "right" }}>
           <div style={S.summaryLabel}>Total Estimasi</div>
-          <div style={S.summaryValue}>Rp <span style={{ fontSize: 18 }}>{totalHarga.toLocaleString("id-ID")}</span></div>
+          <div className="summary-value" style={S.summaryValue}>Rp <span style={{ fontSize: 18 }}>{totalHarga.toLocaleString("id-ID")}</span></div>
         </div>
       </div>
       <button
@@ -321,7 +324,7 @@ function SummaryCard({ totalBerat, totalHarga, onSubmit, submitting, loadingPric
       </button>
     </div>
   );
-}
+});
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 function TrackingUser() {
@@ -335,10 +338,15 @@ function TrackingUser() {
   const driverId = localStorage.getItem("userId");
   const driverName = localStorage.getItem("nama") || "Petugas";
   const orderId = order?.id;
+  const { updateDriverLocation, joinOrderRoom, leaveOrderRoom, isConnected } = useSocket();
   const userProfile = useMemo(() => getProfile("user", order), [order]);
   const petugasProfile = useMemo(() => getProfile("petugas"), []);
   const [orderStatus, setOrderStatus] = useState(initialOrder?.status || "assigned");
   const [hargaList, setHargaList] = useState({ organik: [], anorganik: [], lainnya: [] });
+
+  const getOrderStatus = (orderData) => {
+    return orderData?.status || orderData?.order_status || orderData?.state || null;
+  };
   const [driverLocation, setDriverLocation] = useState(null);
   const [userLocation, setUserLocation] = useState(
     initialOrder?.user_lat && initialOrder?.user_lng ? [initialOrder.user_lat, initialOrder.user_lng] : null
@@ -347,6 +355,8 @@ function TrackingUser() {
   const [kecamatanGeoJson, setKecamatanGeoJson] = useState(null);
   const [driverSmoothPos, setDriverSmoothPos] = useState(null);
   const [userSmoothPos, setUserSmoothPos] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [forceFit, setForceFit] = useState(false);
 
   // Routing/caching refs (PRESERVED)
   const routeCacheRef = useRef(new Map());
@@ -354,6 +364,18 @@ function TrackingUser() {
   const inFlightRef = useRef(false);
   const abortControllerRef = useRef(null);
   const lastFetchedPositionsRef = useRef(null);
+  const mapRef = useRef(null);
+  const mountedRef = useRef(true);
+  const driverLocationRef = useRef(null);
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  console.log("[RENDER #" + renderCountRef.current + "] TrackingUser", {
+    orderId,
+    orderStatus,
+    driverLocation,
+    userLocation,
+    hasRoute: !!routeGeoJson,
+  });
 
   const MIN_ROUTE_INTERVAL = 5000;
   const MOVE_THRESHOLD_METERS = 50;
@@ -396,8 +418,23 @@ function TrackingUser() {
     if (!from || !to) return;
     const now = Date.now();
     const key = coordKey(from, to);
+    console.log("[ROUTE FETCH CALLED]", {
+      driverLocation: from,
+      currentUserLocation: to,
+      startLat: from[0],
+      startLng: from[1],
+      endLat: to[0],
+      endLng: to[1],
+      cacheKey: key,
+      timestamp: now,
+    });
     const cache = routeCacheRef.current.get(key);
-    if (cache && now - cache.ts < 60 * 1000) { setRouteGeoJson(cache.geo); return; }
+    if (cache && now - cache.ts < 60 * 1000) {
+      console.log("[ROUTE CACHE HIT]", key);
+      setRouteGeoJson(cache.geo);
+      return;
+    }
+    console.log("[ROUTE CACHE MISS]", key);
     if (inFlightRef.current && now - lastRouteTimeRef.current < MIN_ROUTE_INTERVAL) return;
     const distMoved = lastFetchedPositionsRef.current
       ? Math.max(haversine(lastFetchedPositionsRef.current.from, from), haversine(lastFetchedPositionsRef.current.to, to))
@@ -417,16 +454,25 @@ function TrackingUser() {
       if (data?.routes?.length > 0) {
         const best = chooseBestRoute(data.routes);
         if (best?.geometry) {
+          if (!mountedRef.current) return;
           setRouteGeoJson(best.geometry);
+          console.log("[ROUTE FETCH SUCCESS]", key);
           routeCacheRef.current.set(key, { geo: best.geometry, ts: Date.now() });
+          if (routeCacheRef.current.size > 50) {
+            const oldestKey = routeCacheRef.current.keys().next().value;
+            routeCacheRef.current.delete(oldestKey);
+          }
         }
       } else {
+        if (!mountedRef.current) return;
         setRouteGeoJson({ type: "LineString", coordinates: [[from[1], from[0]], [to[1], to[0]]] });
+        console.log("[ROUTE FETCH SUCCESS]", key);
       }
       lastFetchedPositionsRef.current = { from, to };
     } catch (err) {
       if (err.name === "AbortError") return;
-      setRouteGeoJson({ type: "LineString", coordinates: [[from[1], from[0]], [to[1], to[0]]] });
+      console.log("[ROUTE FETCH FAILED]", err);
+      if (mountedRef.current) setRouteGeoJson({ type: "LineString", coordinates: [[from[1], from[0]], [to[1], to[0]]] });
     } finally {
       inFlightRef.current = false;
     }
@@ -468,23 +514,52 @@ function TrackingUser() {
   }, []);
 
   const fetchOrderStatus = useCallback(async () => {
+    console.log("[FETCH ORDER STATUS]", orderId, Date.now());
     if (!orderId) return;
     try {
       const response = await ordersAPI.getOrderDetail(orderId);
       const updated = response.data;
+      const normalizedStatus = getOrderStatus(updated);
       if (updated) {
-        setOrder(updated);
-        setOrderStatus(updated.status);
-        setUserAddress(updated.address || "");
-        if (updated.user_lat != null && updated.user_lng != null) {
-          setUserLocation([Number(updated.user_lat), Number(updated.user_lng)]);
+        console.log("[ORDER STATE UPDATE]");
+
+        if (['cancelled', 'completed', 'rejected'].includes(normalizedStatus)) {
+          console.log("[ORDER ENDED]", normalizedStatus);
+          alert("⚠️ Order sudah tidak aktif lagi. Kembali ke dashboard.");
+          history.push("/driver/dashboard");
+          return;
         }
-        sessionStorage.setItem("tracking_order", JSON.stringify(updated));
+
+        setOrder(prev => {
+          const same = prev && prev.id === updated.id && getOrderStatus(prev) === normalizedStatus
+            && prev.address === updated.address && prev.user_lat === updated.user_lat && prev.user_lng === updated.user_lng
+            && prev.driver_lat === updated.driver_lat && prev.driver_lng === updated.driver_lng;
+          if (same) {
+            console.log("[ORDER SKIPPED]", "No meaningful change");
+            return prev;
+          }
+          console.log("[ORDER UPDATE]", { oldStatus: prev?.status || prev?.order_status, newStatus: normalizedStatus });
+          try { sessionStorage.setItem("tracking_order", JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        });
+
+        setOrderStatus(prev => (prev === normalizedStatus ? prev : normalizedStatus));
+        setUserAddress(prev => (prev === (updated.address || "") ? prev : (updated.address || "")));
+
+        if (updated.user_lat != null && updated.user_lng != null) {
+          const next = [Number(updated.user_lat), Number(updated.user_lng)];
+          console.log("[USER LOCATION UPDATE]", next);
+          setUserLocation(prev => {
+            return prev && prev[0] === next[0] && prev[1] === next[1] ? prev : next;
+          });
+        }
       }
     } catch (err) {
       console.error("Error fetching order status:", err);
     }
-  }, [orderId]);
+  }, [orderId, history]);
+
+  const joinedOrderRef = useRef(null);
 
   const updateOrderStatus = useCallback(async (newStatus) => {
     if (!orderId || !driverId) return;
@@ -501,6 +576,7 @@ function TrackingUser() {
   }, [driverId, orderId]);
 
   useEffect(() => {
+    console.log("[EFFECT RUN]", "polling");
     if (!order?.id) { history.push("/driver/dashboard"); return; }
     fetchOrderStatus();
     const interval = setInterval(fetchOrderStatus, 3000);
@@ -508,23 +584,75 @@ function TrackingUser() {
   }, [order?.id, history, fetchOrderStatus]);
 
   useEffect(() => {
+    console.log("[EFFECT RUN]", "socket");
+    if (!orderId || !isConnected) return;
+    if (joinedOrderRef.current === orderId) {
+      console.log("[SOCKET] already joined room", orderId);
+      return;
+    }
+    joinedOrderRef.current = orderId;
+    joinOrderRoom(orderId);
+    return () => {
+      if (orderId && joinedOrderRef.current === orderId) {
+        leaveOrderRoom(orderId);
+        joinedOrderRef.current = null;
+      }
+    };
+  }, [orderId, isConnected, joinOrderRoom, leaveOrderRoom]);
+
+  useEffect(() => {
+    console.log("[EFFECT RUN]", "geolocation");
     if (!navigator.geolocation || !order?.id) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const lat = Number(pos.coords.latitude), lng = Number(pos.coords.longitude);
-        setDriverLocation([lat, lng]);
-        if (orderStatus !== "completed") sendDriverLocation(lat, lng);
+        const nextLocation = [lat, lng];
+        const prev = driverLocationRef.current;
+        const shouldUpdate = !prev || haversine(prev, nextLocation) > 15;
+        if (shouldUpdate) {
+          console.log("[DRIVER LOCATION UPDATE]", nextLocation);
+          console.log("[GPS SEND]", { lat: nextLocation[0], lng: nextLocation[1] });
+          setDriverLocation(nextLocation);
+          driverLocationRef.current = nextLocation;
+          if (orderStatus !== "completed") {
+            console.log("[API DRIVER LOCATION UPDATE]", { lat, lng });
+            sendDriverLocation(lat, lng);
+            console.log("[SOCKET LOCATION EMIT]", { lat, lng });
+            updateDriverLocation(orderId, lat, lng);
+          }
+        } else {
+          console.log("[GPS SKIPPED]", "Movement < 15m");
+        }
       },
       (err) => console.error("Geolocation error:", err),
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [order?.id, orderStatus, sendDriverLocation]);
+  }, [order?.id, orderStatus, sendDriverLocation, updateDriverLocation]);
+
+  // Mounted/unmount guard and abort in-flight route requests
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      try { abortControllerRef.current?.abort(); } catch (e) {}
+    };
+  }, []);
 
   useEffect(() => {
+    console.log("[EFFECT RUN]", "route-fetch");
     if (!driverLocation || !userLocation) { setRouteGeoJson(null); return; }
     fetchRouteManaged(driverLocation, userLocation);
   }, [driverLocation, userLocation, fetchRouteManaged]);
+
+  useEffect(() => {
+    console.log("[ROUTE GEOJSON CHANGED]", {
+      hasRoute: !!routeGeoJson,
+      coordinates: routeGeoJson?.coordinates?.length || 0,
+    });
+  }, [routeGeoJson]);
+
+  // keep ref in sync with latest driverLocation to use in geolocation watcher
+  useEffect(() => { driverLocationRef.current = driverLocation; }, [driverLocation]);
 
   // Smooth marker interpolation (PRESERVED)
   useEffect(() => {
@@ -581,10 +709,13 @@ function TrackingUser() {
   const handleRefreshLocation = async () => {
     if (!order) return;
     try {
+      setIsRefreshing(true);
       await fetchOrderStatus();
+      setForceFit(s => !s);
     } catch (err) {
       console.error("Error refreshing location:", err);
     }
+    finally { setIsRefreshing(false); }
   };
   
 
@@ -636,19 +767,23 @@ function TrackingUser() {
 
   if (!order) return null;
 
-  const currentUserLocation = order.user_lat && order.user_lng ? [order.user_lat, order.user_lng] : userLocation;
+  const currentUserLocation = useMemo(() => {
+    if (order?.user_lat != null && order?.user_lng != null) return [Number(order.user_lat), Number(order.user_lng)];
+    return userLocation;
+  }, [order?.user_lat, order?.user_lng, userLocation]);
+
   const center = useMemo(() => driverLocation || currentUserLocation || [-7.8, 110.3], [driverLocation, currentUserLocation]);
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <>
       <style>{CSS}</style>
-      <div style={S.root}>
+      <div className="tracking-root" style={S.root}>
 
         {/* ── LEFT: Map ── */}
-        <div style={S.mapPanel}>
+        <div className="tracking-map-panel" style={S.mapPanel}>
           {/* Header overlay on map */}
-          <div style={S.mapHeader}>
+          <div className="tracking-map-header" style={S.mapHeader}>
             <button style={S.backBtn} onClick={() => history.goBack()}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6"/>
@@ -658,10 +793,14 @@ function TrackingUser() {
               <div style={S.mapTitleLabel}>K-TRASH Tracking</div>
               <div style={S.mapTitleSub}>Order #{order.id} · Real-time</div>
             </div>
-            <button style={S.refreshBtn} onClick={handleRefreshLocation} title="Refresh lokasi">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-              </svg>
+            <button style={S.refreshBtn} onClick={handleRefreshLocation} title="Refresh lokasi" aria-label="Refresh lokasi">
+              {isRefreshing ? (
+                <div style={S.iconSpinner} />
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+              )}
             </button>
             <button style={{ ...S.refreshBtn, marginLeft: 8 }} onClick={() => history.push('/driver/profile')} title="Profil Saya">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -695,7 +834,6 @@ function TrackingUser() {
 
             {routeGeoJson ? (
               <GeoJSON
-                key={JSON.stringify(routeGeoJson)}
                 data={routeGeoJson}
                 style={{ color: T.green500, weight: 5, opacity: 0.92, lineCap: "round" }}
               />
@@ -707,6 +845,7 @@ function TrackingUser() {
               driverLocation={driverSmoothPos || driverLocation}
               userLocation={userSmoothPos || currentUserLocation}
               routeGeoJson={routeGeoJson}
+              forceFit={forceFit}
             />
           </MapContainer>
 
@@ -714,7 +853,7 @@ function TrackingUser() {
         </div>
 
         {/* ── RIGHT: Order Panel ── */}
-        <div style={S.panel} className="tracking-panel-scroll">
+        <div style={S.panel} className="tracking-panel tracking-panel-scroll">
 
           {/* Customer Card */}
           <div style={{ padding: "20px 20px 0" }}>
@@ -808,8 +947,8 @@ function TrackingUser() {
 const S = {
   root: {
     display: "flex",
-    height: "100vh",
-    width: "100vw",
+    height: "100dvh",
+    width: "100%",
     overflow: "hidden",
     background: T.bg,
     fontFamily: "'Outfit', 'DM Sans', 'Segoe UI', sans-serif",
@@ -820,6 +959,7 @@ const S = {
     flex: "1 1 65%",
     position: "relative",
     overflow: "hidden",
+    minHeight: 0,
     background: "#1a2e1a",
   },
   mapHeader: {
@@ -902,12 +1042,15 @@ const S = {
   // Panel
   panel: {
     flex: "0 0 380px",
-    width: 380,
+    width: "100%",
+    maxWidth: 380,
     background: T.panel,
     borderLeft: `1px solid ${T.border}`,
     display: "flex",
     flexDirection: "column",
     overflowY: "auto",
+    overflowX: "hidden",
+    minHeight: 0,
   },
 
   // Customer card
@@ -1115,6 +1258,12 @@ const S = {
     borderTop: `3px solid ${T.green500}`,
     animation: "spin 0.8s linear infinite",
   },
+  iconSpinner: {
+    width: 16, height: 16, borderRadius: "50%",
+    border: "2px solid rgba(255,255,255,0.7)",
+    borderTop: `2px solid ${T.green500}`,
+    animation: "spin 0.8s linear infinite",
+  },
 };
 
 const CSS = `
@@ -1122,7 +1271,8 @@ const CSS = `
 
   * { box-sizing: border-box; }
 
-  .tracking-panel-scroll { scrollbar-width: thin; scrollbar-color: rgba(34,197,94,0.2) transparent; }
+  .tracking-panel { max-width: 100%; overflow-y: auto; }
+  .tracking-panel-scroll { scrollbar-width: thin; scrollbar-color: rgba(34,197,94,0.2) transparent; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .tracking-panel-scroll::-webkit-scrollbar { width: 4px; }
   .tracking-panel-scroll::-webkit-scrollbar-track { background: transparent; }
   .tracking-panel-scroll::-webkit-scrollbar-thumb { background: rgba(34,197,94,0.25); border-radius: 4px; }
@@ -1143,8 +1293,35 @@ const CSS = `
 
   /* Mobile responsive */
   @media (max-width: 768px) {
-    /* Force column on mobile — handled via JS/CSS override if needed */
-    body .tracking-root { flex-direction: column !important; }
+    body .tracking-root { flex-direction: column !important; height: 100dvh; }
+
+    /* Map on top, panel below */
+    .tracking-map-panel { flex: 0 0 42dvh !important; min-height: 220px !important; }
+
+    /* Panel fills remaining viewport and scrolls internally */
+    .tracking-panel { flex: 1 1 0% !important; width: 100% !important; max-width: 100% !important; max-height: calc(100dvh - 42dvh) !important; }
+    .tracking-panel-scroll { overflow-y: auto !important; -webkit-overflow-scrolling: touch; max-height: calc(100dvh - 42dvh) !important; }
+
+    /* Tighten header spacing on small screens */
+    .tracking-map-header { padding: 10px 12px !important; gap: 8px !important; }
+    .tracking-map-header button { width: 34px !important; height: 34px !important; }
+
+    /* Allow status pill to wrap */
+    .status-pill { white-space: normal !important; flex-wrap: wrap; gap: 6px; }
+
+    /* Stepper label smaller */
+    .step-label { font-size: 8px !important; max-width: 40px !important; }
+
+    /* Smaller input widths for sampah inputs */
+    .sampah-input { width: 56px !important; }
+
+    /* Reduce summary font on small screens */
+    .summary-value { font-size: 18px !important; }
+
+    /* Reposition map chips so they don't get hidden by panel */
+    .map-badge { bottom: 16px !important; left: 12px; transform: none; }
+    .map-order-chip { top: 88px !important; right: 12px !important; }
+    .map-debug-chip { bottom: 60px !important; left: 12px !important; }
   }
 `;
 

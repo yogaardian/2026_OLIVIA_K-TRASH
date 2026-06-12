@@ -30,7 +30,7 @@ function Saldo() {
       // Fetch hold balance setting
       try {
         const holdRes = await transactionsAPI.getMinimumHoldBalance();
-        const hold = Number(holdRes.data.amount || 50000);
+        const hold = Number(holdRes.data.minimum_hold_balance ?? holdRes.data.amount ?? 50000);
         setHoldAmount(hold);
         setHoldInput(hold);
       } catch (err) {
@@ -75,8 +75,11 @@ function Saldo() {
         setFeedback({ type: 'warning', message: 'Masukkan nilai hold balance yang valid.' });
         return;
       }
-      await transactionsAPI.setMinimumHoldBalance(amount);
-      setHoldAmount(amount);
+      const res = await transactionsAPI.setMinimumHoldBalance(amount);
+      const updatedHold = Number(res.data.minimum_hold_balance ?? amount);
+      setHoldAmount(updatedHold);
+      setHoldInput(updatedHold);
+      localStorage.setItem('holdBalanceUpdatedAt', Date.now().toString());
       setFeedback({ type: 'success', message: 'Minimum hold balance berhasil diperbarui.' });
       await fetchAdminData();
     } catch (error) {
@@ -190,13 +193,6 @@ function Saldo() {
           </Card>
         </Col>
         <Col md={4}>
-          <Card className="mb-3">
-            <Card.Body>
-              <h5>Ringkasan Hold</h5>
-              <p>Total saldo user: Rp {Number(summary.total_balance).toLocaleString('id-ID')}</p>
-              <p>Total saldo mengendap: Rp {Number(summary.total_hold).toLocaleString('id-ID')}</p>
-            </Card.Body>
-          </Card>
         </Col>
         <Col md={4}>
           <Card className="mb-3">

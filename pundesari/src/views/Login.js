@@ -41,11 +41,10 @@ function Login() {
       const userData = data.user;
       const role = userData.role || 'user';
       const profileRole = role === 'driver' ? 'petugas' : role;
-      const storedProfile = loadStoredProfile(profileRole);
       const profilePhoto =
-        userData.profile_photo !== undefined && userData.profile_photo !== null
+        userData.profile_photo && String(userData.profile_photo).trim() !== ""
           ? userData.profile_photo
-          : storedProfile.profilePhoto || null;
+          : null;
 
       saveProfile(profileRole, {
         id: userData.id,
@@ -78,17 +77,25 @@ function Login() {
     setError("");
     setLoading(true);
 
+    if (!credentialResponse?.credential) {
+      if (isMountedRef.current) {
+        setError("Google credential tidak ditemukan. Silakan coba lagi.");
+      }
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data } = await authAPI.googleLogin(credentialResponse.credential);
 
       if (!data || data.status !== 'success') {
         if (isMountedRef.current) {
-          setError(data?.message || 'Google login gagal');
+          setError(data?.error || data?.message || 'Google login gagal');
         }
         return;
       }
 
-      if (data.status === 'success' && data.token) {
+      if (data.token) {
         const userData = data.user;
         const role = userData.role || 'user';
         const profileRole = role === 'driver' ? 'petugas' : role;
@@ -115,9 +122,9 @@ function Login() {
       }
     } catch (err) {
       if (isMountedRef.current) {
-        const errorMsg = err.message || "Google login gagal";
+        const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || "Google login gagal";
         setError(errorMsg);
-        console.error("Google login error:", err);
+        console.error("Google login error:", err.response?.data || err);
       }
     } finally {
       if (isMountedRef.current) setLoading(false);

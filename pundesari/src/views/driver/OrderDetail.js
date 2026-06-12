@@ -16,7 +16,7 @@ const T = {
   greenGlow: "rgba(34,197,94,0.18)",
   greenGlow2: "rgba(34,197,94,0.08)",
   surface: "#ffffff",
-  bg: "#f0fdf4",
+  bg: "#f5f7f5",
   panel: "#fafffe",
   border: "rgba(34,197,94,0.15)",
   borderStrong: "rgba(34,197,94,0.3)",
@@ -74,13 +74,13 @@ function MapHeader({ order, userProfile }) {
             </svg>
           )}
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={S.mapOverlayName}>{userProfile?.name || `User #${order.user_id}`}</div>
           <div style={S.mapOverlayAddr}>{order.address}</div>
         </div>
       </div>
       <div style={S.mapOverlayBadge}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.amber, display: "inline-block", marginRight: 5, boxShadow: `0 0 0 3px ${T.amberGlow}` }} />
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.amber, display: "inline-block", marginRight: 5, boxShadow: `0 0 0 3px ${T.amberGlow}`, flexShrink: 0 }} />
         Pending
       </div>
     </div>
@@ -109,7 +109,7 @@ function OrderDetail() {
       const response = await ordersAPI.acceptOrder(order.id, parseInt(driverId));
       if (response.status === 200) {
         alert("Order Berhasil Diterima!");
-        const acceptedOrder = { ...order, status: "assigned", driver_id: parseInt(driverId) };
+        const acceptedOrder = { ...order, status: "on_the_way", driver_id: parseInt(driverId) };
         sessionStorage.setItem("tracking_order", JSON.stringify(acceptedOrder));
         sessionStorage.setItem("current_order_id", order.id);
         history.push({ pathname: "/driver/tracking-user", state: { order: acceptedOrder } });
@@ -132,10 +132,10 @@ function OrderDetail() {
   return (
     <>
       <style>{CSS}</style>
-      <div style={S.root}>
+      <div style={S.root} className="orderdetail-root">
 
         {/* ── LEFT: Map ── */}
-        <div style={S.mapPanel}>
+        <div style={S.mapPanel} className="orderdetail-map-panel">
 
           {/* Glassmorphic header over map */}
           <div style={S.mapHeader}>
@@ -170,8 +170,8 @@ function OrderDetail() {
 
           {/* Jenis sampah chip */}
           {order.jenis_sampah && (
-            <div style={S.sampahChip}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <div style={S.sampahChip} className="orderdetail-sampah-chip">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
               </svg>
               {order.jenis_sampah}
@@ -183,7 +183,7 @@ function OrderDetail() {
         <div style={S.panel} className="orderdetail-scroll">
 
           {/* Customer Card */}
-          <div style={{ padding: "20px 20px 0" }}>
+          <div style={S.sectionPad}>
             <div style={S.customerCard}>
               <div style={S.customerAvatarWrap}>
                 <div style={S.customerAvatar}>
@@ -201,20 +201,20 @@ function OrderDetail() {
                 </div>
                 <div style={S.onlineDot} />
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={S.customerName}>{userProfile?.name || `User #${order.user_id}`}</div>
                 <div style={S.customerAddr}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, flexShrink: 0 }}>
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
                   </svg>
-                  {order.address}
+                  <span style={{ wordBreak: "break-word" }}>{order.address}</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Stats row */}
-          <div style={{ padding: "14px 20px 0" }}>
+          <div style={S.sectionPadTop}>
             <div style={S.statsRow}>
               <StatChip
                 icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
@@ -230,7 +230,7 @@ function OrderDetail() {
           </div>
 
           {/* Order Details Card */}
-          <div style={{ padding: "14px 20px 0" }}>
+          <div style={S.sectionPadTop}>
             <div style={S.sectionLabel}>Detail Order</div>
             <div style={S.detailCard}>
               <InfoRow label="Kode Customer" value={`#${order.id}`} accent />
@@ -251,7 +251,7 @@ function OrderDetail() {
           </div>
 
           {/* Location Card */}
-          <div style={{ padding: "14px 20px 0" }}>
+          <div style={S.sectionPadTop}>
             <div style={S.sectionLabel}>Lokasi Pickup</div>
             <div style={S.locationCard}>
               <div style={S.locationIconWrap}>
@@ -259,7 +259,7 @@ function OrderDetail() {
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
                 </svg>
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={S.locationAddr}>{order.address}</div>
                 {order.user_lat && order.user_lng && (
                   <div style={S.locationCoords}>{Number(order.user_lat).toFixed(5)}, {Number(order.user_lng).toFixed(5)}</div>
@@ -268,26 +268,9 @@ function OrderDetail() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div style={{ padding: "14px 20px 0" }}>
-            <div style={S.actionRow}>
-              <button style={S.chatBtn}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.green700} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-                Chat
-              </button>
-              <button style={S.phoneBtn}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.16 6.16l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                </svg>
-                Telepon
-              </button>
-            </div>
-          </div>
 
           {/* Accept Order CTA */}
-          <div style={{ padding: "16px 20px 28px" }}>
+          <div style={S.acceptPad}>
             <button
               style={{ ...S.acceptBtn, opacity: accepting ? 0.7 : 1 }}
               onClick={handleAcceptOrder}
@@ -298,7 +281,7 @@ function OrderDetail() {
                 <><div style={S.btnSpinner} />Memproses...</>
               ) : (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, flexShrink: 0 }}>
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                   Ambil Order
@@ -317,9 +300,9 @@ const S = {
   root: {
     display: "flex",
     height: "100vh",
-    width: "100vw",
+    width: "100%",
     overflow: "hidden",
-    background: T.bg,
+    background: "#f5f7f5",
     fontFamily: "'Outfit', 'DM Sans', 'Segoe UI', sans-serif",
   },
 
@@ -329,6 +312,7 @@ const S = {
     position: "relative",
     overflow: "hidden",
     background: "#0f1f0f",
+    minHeight: 0,
   },
   mapHeader: {
     position: "absolute",
@@ -337,11 +321,11 @@ const S = {
     display: "flex",
     alignItems: "center",
     gap: 12,
-    padding: "16px 20px",
+    padding: "14px 16px",
     background: "linear-gradient(to bottom, rgba(5,46,22,0.78) 0%, transparent 100%)",
   },
   backBtn: {
-    width: 36, height: 36,
+    width: 40, height: 40,
     borderRadius: "50%",
     background: "rgba(255,255,255,0.94)",
     border: "none",
@@ -350,8 +334,9 @@ const S = {
     boxShadow: "0 2px 10px rgba(0,0,0,0.14)",
     flexShrink: 0,
     transition: "transform 0.15s",
+    minWidth: 40,
   },
-  mapTitleWrap: { flex: 1 },
+  mapTitleWrap: { flex: 1, minWidth: 0 },
   mapTitleText: { fontSize: 14, fontWeight: 800, color: "#fff", letterSpacing: "0.02em" },
   mapTitleSub: { fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 1 },
   orderIdChip: {
@@ -364,23 +349,25 @@ const S = {
     fontSize: 11, fontWeight: 700, color: T.green700,
     boxShadow: T.shadow,
     flexShrink: 0,
+    whiteSpace: "nowrap",
   },
 
   // Map floating cards
   mapOverlayCard: {
     position: "absolute",
-    bottom: 70, left: 16, right: 16,
+    bottom: 56, left: 12, right: 12,
     zIndex: 800,
-    display: "flex", alignItems: "center", gap: 12,
+    display: "flex", alignItems: "center", gap: 10,
     background: "rgba(255,255,255,0.94)",
     backdropFilter: "blur(14px)",
     WebkitBackdropFilter: "blur(14px)",
     border: `1px solid ${T.border}`,
     borderRadius: 16,
-    padding: "12px 14px",
+    padding: "10px 12px",
     boxShadow: T.shadowMd,
+    overflow: "hidden",
   },
-  mapOverlayLeft: { display: "flex", alignItems: "center", gap: 10, flex: 1 },
+  mapOverlayLeft: { display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 },
   mapOverlayAvatar: {
     width: 34, height: 34, borderRadius: 10,
     background: `linear-gradient(135deg,${T.green500},${T.green700})`,
@@ -388,20 +375,21 @@ const S = {
     flexShrink: 0,
     boxShadow: `0 4px 10px ${T.greenGlow}`,
   },
-  mapOverlayName: { fontSize: 13, fontWeight: 700, color: T.text },
-  mapOverlayAddr: { fontSize: 10, color: T.textSoft, lineHeight: 1.4, marginTop: 1 },
+  mapOverlayName: { fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  mapOverlayAddr: { fontSize: 10, color: T.textSoft, lineHeight: 1.4, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   mapOverlayBadge: {
     fontSize: 10, fontWeight: 700,
     color: T.amber,
     background: T.amberGlow,
     border: "1px solid rgba(245,158,11,0.3)",
-    borderRadius: 50, padding: "3px 9px",
+    borderRadius: 50, padding: "4px 9px",
     display: "flex", alignItems: "center",
     flexShrink: 0,
+    whiteSpace: "nowrap",
   },
   sampahChip: {
     position: "absolute",
-    bottom: 24, left: "50%",
+    bottom: 14, left: "50%",
     transform: "translateX(-50%)",
     zIndex: 800,
     display: "flex", alignItems: "center", gap: 6,
@@ -413,6 +401,9 @@ const S = {
     fontSize: 12, fontWeight: 700, color: T.green700,
     boxShadow: T.shadowMd,
     whiteSpace: "nowrap",
+    maxWidth: "calc(100% - 32px)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   // Panel
@@ -424,7 +415,13 @@ const S = {
     display: "flex",
     flexDirection: "column",
     overflowY: "auto",
+    overflowX: "hidden",
   },
+
+  // Padding helpers
+  sectionPad: { padding: "16px 16px 0" },
+  sectionPadTop: { padding: "12px 16px 0" },
+  acceptPad: { padding: "14px 16px 24px" },
 
   // Customer
   customerCard: {
@@ -432,7 +429,7 @@ const S = {
     background: T.surface,
     border: `1px solid ${T.border}`,
     borderRadius: T.radius,
-    padding: 16,
+    padding: 14,
     boxShadow: T.shadow,
   },
   customerAvatarWrap: { position: "relative", flexShrink: 0 },
@@ -449,7 +446,7 @@ const S = {
     border: `2px solid ${T.panel}`,
     boxShadow: `0 0 0 3px ${T.amberGlow}`,
   },
-  customerName: { fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 },
+  customerName: { fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   customerAddr: {
     display: "flex", alignItems: "flex-start",
     fontSize: 11, color: T.textSoft, lineHeight: 1.5,
@@ -467,6 +464,7 @@ const S = {
     borderRadius: T.radiusSm,
     padding: "10px 12px",
     boxShadow: T.shadow,
+    minWidth: 0,
   },
   statIcon: {
     width: 32, height: 32,
@@ -477,7 +475,7 @@ const S = {
     flexShrink: 0,
   },
   statLabel: { fontSize: 9, color: T.textXsoft, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 },
-  statValue: { fontSize: 12, fontWeight: 800, color: T.text, fontFamily: "'JetBrains Mono', monospace" },
+  statValue: { fontSize: 12, fontWeight: 800, color: T.text, fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
 
   // Section label
   sectionLabel: {
@@ -497,13 +495,14 @@ const S = {
   infoRow: {
     display: "flex", justifyContent: "space-between", alignItems: "center",
     padding: "11px 16px",
+    gap: 8,
   },
-  infoLabel: { fontSize: 12, color: T.textSoft },
-  infoValue: { fontSize: 12, fontWeight: 700, textAlign: "right", maxWidth: "55%" },
+  infoLabel: { fontSize: 12, color: T.textSoft, flexShrink: 0 },
+  infoValue: { fontSize: 12, fontWeight: 700, textAlign: "right", maxWidth: "55%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   detailDivider: { height: 1, background: T.border, margin: "0 16px" },
   notesBlock: { padding: "11px 16px" },
   notesLabel: { fontSize: 10, color: T.textXsoft, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 },
-  notesText: { fontSize: 12, color: T.textMid, lineHeight: 1.6, fontStyle: "italic" },
+  notesText: { fontSize: 12, color: T.textMid, lineHeight: 1.6, fontStyle: "italic", wordBreak: "break-word" },
 
   // Location card
   locationCard: {
@@ -521,8 +520,8 @@ const S = {
     display: "flex", alignItems: "center", justifyContent: "center",
     flexShrink: 0,
   },
-  locationAddr: { fontSize: 12, fontWeight: 600, color: T.text, lineHeight: 1.5 },
-  locationCoords: { fontSize: 10, color: T.textXsoft, marginTop: 3, fontFamily: "'JetBrains Mono', monospace" },
+  locationAddr: { fontSize: 12, fontWeight: 600, color: T.text, lineHeight: 1.5, wordBreak: "break-word" },
+  locationCoords: { fontSize: 10, color: T.textXsoft, marginTop: 3, fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-all" },
 
   // Action row
   actionRow: {
@@ -530,7 +529,8 @@ const S = {
     gap: 10,
   },
   chatBtn: {
-    padding: "12px 0",
+    padding: "13px 0",
+    minHeight: 44,
     background: T.surface,
     color: T.green700,
     border: `1.5px solid ${T.borderStrong}`,
@@ -542,7 +542,8 @@ const S = {
     boxShadow: T.shadow,
   },
   phoneBtn: {
-    padding: "12px 0",
+    padding: "13px 0",
+    minHeight: 44,
     background: `linear-gradient(135deg,${T.green500},${T.green700})`,
     color: "#fff",
     border: "none",
@@ -556,8 +557,9 @@ const S = {
 
   // Accept button
   acceptBtn: {
-    width: "100%", padding: "15px 0",
-    background: `linear-gradient(135deg,${T.green500} 0%,${T.green700} 60%,${T.green800} 100%)`,
+    width: "100%", padding: "16px 0",
+    minHeight: 52,
+    background: `linear-gradient(135deg, rgb(102, 178, 130) 0%, rgb(21, 128, 61) 60%, rgb(20, 83, 45) 100%)`,
     color: "#fff", border: "none",
     borderRadius: T.radiusSm,
     fontSize: 15, fontWeight: 800,
@@ -573,6 +575,7 @@ const S = {
     borderTop: "2px solid #fff",
     animation: "spin 0.7s linear infinite",
     marginRight: 8,
+    flexShrink: 0,
   },
 };
 
@@ -580,6 +583,10 @@ const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
 
   * { box-sizing: border-box; }
+
+  .orderdetail-root {
+    --mp-bg: #f5f7f5;
+  }
 
   .orderdetail-scroll::-webkit-scrollbar { width: 4px; }
   .orderdetail-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -599,8 +606,68 @@ const CSS = `
     transform: translateY(0px);
   }
 
+  /* ── Tablet (768px – 1024px): still side-by-side, but map narrower ── */
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .orderdetail-root {
+      flex-direction: row !important;
+    }
+    .orderdetail-map-panel {
+      flex: 1 1 55% !important;
+    }
+    .orderdetail-scroll {
+      flex: 0 0 320px !important;
+      width: 320px !important;
+    }
+  }
+
+  /* ── Mobile (≤768px): stack vertically ── */
   @media (max-width: 768px) {
-    /* Stack on mobile */
+    .orderdetail-root {
+      flex-direction: column !important;
+      height: auto !important;
+      min-height: 100vh !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+
+    .orderdetail-map-panel {
+      flex: none !important;
+      width: 100% !important;
+      height: 46vw !important;
+      min-height: 200px !important;
+      max-height: 280px !important;
+    }
+
+    .orderdetail-scroll {
+      flex: 1 1 auto !important;
+      width: 100% !important;
+      border-left: none !important;
+      border-top: 1px solid rgba(34,197,94,0.15) !important;
+      overflow-y: visible !important;
+    }
+
+    .orderdetail-sampah-chip {
+      bottom: 8px !important;
+      font-size: 11px !important;
+      padding: 5px 12px !important;
+    }
+  }
+
+  /* ── Small mobile (≤430px) ── */
+  @media (max-width: 430px) {
+    .orderdetail-map-panel {
+      height: 52vw !important;
+      min-height: 190px !important;
+      max-height: 240px !important;
+    }
+  }
+
+  /* ── Very small (≤360px) ── */
+  @media (max-width: 360px) {
+    .orderdetail-map-panel {
+      min-height: 170px !important;
+      max-height: 210px !important;
+    }
   }
 `;
 

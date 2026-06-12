@@ -33,14 +33,10 @@ function ChangeView({ center, zoom }) {
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const T = {
   green900: "#052e16",
-  // green800: "#14532d",
-  // green700: "#15803d",
-  // green600: "#16a34a",
-  // green500: "#22c55e",
   green400: "#ffffff",
   green100: "#dcfce7",
   green50:  "#f0fdf4",
-  bg:          "#ffffff",
+  bg:          "#f5f7f5",
   panel:       "#fafffe",
   surface:     "#ffffff",
   border:      "rgba(34,197,94,0.15)",
@@ -69,6 +65,7 @@ const S = {
     minHeight: "100vh",
     background: T.bg,
     fontFamily: T.fontDisplay,
+    overflowX: "hidden",
   },
   main: {
     flex: 1,
@@ -76,14 +73,15 @@ const S = {
     flexDirection: "column",
     minHeight: "100vh",
     background: T.bg,
+    minWidth: 0, // prevent flex child overflow
   },
   pageWrap: {
     flex: 1,
-    maxWidth: 480,
     width: "100%",
     margin: "0 auto",
     padding: "0 0 100px 0",
     position: "relative",
+    boxSizing: "border-box",
   },
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -95,15 +93,18 @@ const S = {
     backdropFilter: "blur(20px)",
     WebkitBackdropFilter: "blur(20px)",
     borderBottom: `1px solid ${T.border}`,
-    padding: "14px 20px",
+    padding: "12px 16px",
     display: "flex",
     alignItems: "center",
-    gap: 14,
-
+    gap: 12,
+    boxSizing: "border-box",
+    width: "100%",
   },
   backBtn: {
     width: 38,
     height: 38,
+    minWidth: 38,
+    minHeight: 38,
     borderRadius: "50%",
     background: T.surface,
     border: `1.5px solid ${T.borderStrong}`,
@@ -116,8 +117,9 @@ const S = {
     transition: "transform 0.15s ease, box-shadow 0.15s ease",
   },
   avatarWrap: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
+    minWidth: 38,
     borderRadius: "50%",
     overflow: "hidden",
     border: `2px solid ${T.green400}`,
@@ -125,35 +127,42 @@ const S = {
     flexShrink: 0,
   },
   avatar: { width: "100%", height: "100%", objectFit: "cover" },
-  headerText: { flex: 1 },
+  headerText: { flex: 1, minWidth: 0, overflow: "hidden" },
   greeting: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 700,
     color: T.text,
     lineHeight: 1.2,
     letterSpacing: "-0.3px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   subGreeting: {
     fontSize: 11,
-    color: T.green600,
+    color: T.textSoft,
     fontWeight: 500,
     letterSpacing: "0.3px",
     marginTop: 1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   ecoBadge: {
     fontSize: 10,
     fontWeight: 700,
-    color: T.green700,
+    color: "#15803d",
     background: T.green100,
     border: `1px solid ${T.borderStrong}`,
     borderRadius: 20,
     padding: "3px 10px",
     letterSpacing: "0.5px",
     textTransform: "uppercase",
+    flexShrink: 0,
   },
 
   // ── Content ─────────────────────────────────────────────────────────────────
-  content: { padding: "20px 16px 0" },
+  content: { padding: "16px 14px 0", boxSizing: "border-box" },
   sectionLabel: {
     fontSize: 10,
     fontWeight: 700,
@@ -169,27 +178,30 @@ const S = {
     background: T.surface,
     border: `1.5px solid ${T.borderStrong}`,
     borderRadius: T.radiusLg,
-    padding: "16px 18px",
+    padding: "14px 16px",
     display: "flex",
     alignItems: "center",
-    gap: 16,
+    gap: 14,
     boxShadow: T.shadowMd,
-    marginBottom: 24,
+    marginBottom: 20,
     position: "relative",
     overflow: "hidden",
+    boxSizing: "border-box",
+    width: "100%",
   },
   serviceGlow: {
     position: "absolute",
     top: 0,
     right: 0,
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     background: "radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 70%)",
     pointerEvents: "none",
   },
   iconCircle: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
+    minWidth: 48,
     borderRadius: "50%",
     background: T.gradientBtn,
     display: "flex",
@@ -197,12 +209,19 @@ const S = {
     justifyContent: "center",
     flexShrink: 0,
   },
+  serviceInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
   serviceTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 700,
     color: T.text,
     marginBottom: 2,
     letterSpacing: "-0.2px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   serviceSubtitle: {
     fontSize: 12,
@@ -212,7 +231,7 @@ const S = {
   activePill: {
     fontSize: 10,
     fontWeight: 700,
-    color: T.green700,
+    color: "#15803d",
     background: T.green100,
     border: `1px solid ${T.borderStrong}`,
     borderRadius: 20,
@@ -221,6 +240,7 @@ const S = {
     textTransform: "uppercase",
     marginLeft: "auto",
     flexShrink: 0,
+    whiteSpace: "nowrap",
   },
 
   // ── Input Card ───────────────────────────────────────────────────────────────
@@ -232,11 +252,13 @@ const S = {
     boxShadow: T.shadow,
     marginBottom: 12,
     transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+    boxSizing: "border-box",
+    width: "100%",
   },
   inputLabel: {
     fontSize: 10,
     fontWeight: 700,
-    color: T.green600,
+    color: "#15803d",
     letterSpacing: "0.8px",
     textTransform: "uppercase",
     paddingTop: 12,
@@ -254,10 +276,11 @@ const S = {
     padding: "6px 0 12px",
     lineHeight: 1.5,
     resize: "none",
+    boxSizing: "border-box",
   },
 
   // ── Map ─────────────────────────────────────────────────────────────────────
-  mapSection: { marginBottom: 16 },
+  mapSection: { marginBottom: 14 },
   mapCard: {
     borderRadius: T.radiusXl,
     overflow: "hidden",
@@ -265,9 +288,10 @@ const S = {
     boxShadow: T.shadowLg,
     position: "relative",
     background: "#e8f5e9",
+    width: "100%",
   },
   mapLoadingBox: {
-    height: 280,
+    height: 240,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
@@ -279,7 +303,7 @@ const S = {
     width: 40,
     height: 40,
     border: `3px solid ${T.green100}`,
-    borderTop: `3px solid ${T.green500}`,
+    borderTop: "3px solid #22c55e",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
   },
@@ -290,9 +314,9 @@ const S = {
   },
   mapOverlay: {
     position: "absolute",
-    bottom: 14,
-    left: 14,
-    right: 14,
+    bottom: 12,
+    left: 12,
+    right: 12,
     zIndex: 800,
     display: "flex",
     alignItems: "flex-end",
@@ -306,24 +330,27 @@ const S = {
     WebkitBackdropFilter: "blur(14px)",
     border: `1px solid ${T.glassBorder}`,
     borderRadius: 30,
-    padding: "6px 14px 6px 10px",
+    padding: "6px 12px 6px 10px",
     display: "flex",
     alignItems: "center",
     gap: 6,
+    flexShrink: 0,
   },
   gpsDot: {
     width: 8,
     height: 8,
+    minWidth: 8,
     borderRadius: "50%",
-    background: T.green500,
-    boxShadow: `0 0 0 3px rgba(34,197,94,0.3)`,
+    background: "#22c55e",
+    boxShadow: "0 0 0 3px rgba(34,197,94,0.3)",
     animation: "pulse 1.5s ease-in-out infinite",
   },
   mapChipText: {
     fontSize: 11,
     fontWeight: 700,
-    color: T.green800,
+    color: "#14532d",
     letterSpacing: "0.3px",
+    whiteSpace: "nowrap",
   },
   mapCoordChip: {
     background: "rgba(5,46,22,0.72)",
@@ -336,16 +363,20 @@ const S = {
     color: T.green400,
     letterSpacing: "0.5px",
     boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "55%",
   },
 
   // ── GPS Button ───────────────────────────────────────────────────────────────
   gpsBtn: {
     width: "100%",
-    padding: "14px 20px",
+    padding: "14px 16px",
     background: T.surface,
     border: `1.5px solid ${T.borderStrong}`,
     borderRadius: T.radius,
-    color: T.green700,
+    color: "#15803d",
     fontFamily: T.fontDisplay,
     fontSize: 14,
     fontWeight: 700,
@@ -356,15 +387,19 @@ const S = {
     gap: 8,
     boxShadow: T.shadow,
     transition: "all 0.2s ease",
-    marginBottom: 24,
+    marginBottom: 20,
     letterSpacing: "-0.2px",
+    boxSizing: "border-box",
+    minHeight: 48,
   },
   gpsBtnDot: {
     width: 8,
     height: 8,
+    minWidth: 8,
     borderRadius: "50%",
-    background: T.green500,
-    boxShadow: `0 0 0 3px rgba(34,197,94,0.25)`,
+    background: "#22c55e",
+    boxShadow: "0 0 0 3px rgba(34,197,94,0.25)",
+    flexShrink: 0,
   },
 
   // ── Notes Card ───────────────────────────────────────────────────────────────
@@ -374,12 +409,14 @@ const S = {
     borderRadius: T.radiusLg,
     overflow: "hidden",
     boxShadow: T.shadow,
-    marginBottom: 100,
+    marginBottom: 24,
+    width: "100%",
+    boxSizing: "border-box",
   },
   notesHeader: {
     background: "linear-gradient(90deg, #f0fdf4 0%, #dcfce7 100%)",
     borderBottom: `1px solid ${T.border}`,
-    padding: "12px 18px",
+    padding: "12px 16px",
     display: "flex",
     alignItems: "center",
     gap: 10,
@@ -387,8 +424,9 @@ const S = {
   notesHeaderIcon: {
     width: 30,
     height: 30,
+    minWidth: 30,
     borderRadius: 8,
-    background: T.green500,
+    background: "#22c55e",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -412,10 +450,11 @@ const S = {
     fontSize: 14,
     color: T.text,
     fontFamily: T.fontDisplay,
-    padding: "16px 18px",
+    padding: "14px 16px",
     resize: "none",
     lineHeight: 1.7,
     boxSizing: "border-box",
+    display: "block",
   },
 
   // ── Sticky Action Bar ────────────────────────────────────────────────────────
@@ -429,28 +468,35 @@ const S = {
     backdropFilter: "blur(20px)",
     WebkitBackdropFilter: "blur(20px)",
     borderTop: `1px solid ${T.border}`,
-    padding: "16px 20px 20px",
+    padding: "12px 16px",
+    paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
     display: "flex",
-    gap: 12,
+    gap: 10,
     boxShadow: "0 -4px 24px rgba(34,197,94,0.10)",
+    boxSizing: "border-box",
   },
   cancelBtn: {
     flex: 1,
-    padding: "15px 20px",
+    padding: "0 16px",
+    minHeight: 48,
     background: T.surface,
     border: `1.5px solid ${T.borderStrong}`,
     borderRadius: T.radius,
-    color: T.green700,
+    color: "#15803d",
     fontFamily: T.fontDisplay,
     fontSize: 14,
     fontWeight: 700,
     cursor: "pointer",
     transition: "all 0.2s ease",
     letterSpacing: "-0.2px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   nextBtn: {
     flex: 2,
-    padding: "15px 20px",
+    padding: "0 16px",
+    minHeight: 48,
     background: T.gradientBtn,
     border: "none",
     borderRadius: T.radius,
@@ -463,25 +509,39 @@ const S = {
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    boxShadow: `0 4px 20px rgba(34,197,94,0.40)`,
+    boxShadow: "0 4px 20px rgba(34,197,94,0.40)",
     transition: "all 0.2s ease",
     letterSpacing: "-0.2px",
   },
 };
 
-// ─── Keyframe injection ───────────────────────────────────────────────────────
+// ─── Keyframe + Responsive CSS injection ─────────────────────────────────────
 if (typeof document !== "undefined" && !document.getElementById("pickup-keyframes")) {
   const style = document.createElement("style");
   style.id = "pickup-keyframes";
   style.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
     @keyframes spin  { to { transform: rotate(360deg); } }
-    @keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,0.3)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0.15)} }
-    @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 3px rgba(34,197,94,0.3); }
+      50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0.15); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Base resets ── */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    /* ── Focus states ── */
     .pickup-input-card:focus-within {
       border-color: rgba(34,197,94,0.50) !important;
       box-shadow: 0 0 0 3px rgba(34,197,94,0.10), 0 4px 16px rgba(34,197,94,0.10) !important;
     }
+
+    /* ── Hover states ── */
     .pickup-gps-btn:hover {
       background: #f0fdf4 !important;
       box-shadow: 0 4px 16px rgba(34,197,94,0.20) !important;
@@ -490,7 +550,81 @@ if (typeof document !== "undefined" && !document.getElementById("pickup-keyframe
     .pickup-cancel-btn:hover { background: #f0fdf4 !important; transform: translateY(-1px); }
     .pickup-next-btn:hover   { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 8px 28px rgba(34,197,94,0.50) !important; }
     .pickup-back-btn:hover   { transform: scale(1.08); box-shadow: 0 4px 16px rgba(34,197,94,0.20) !important; }
-    .pickup-section { animation: fadeUp 0.4s ease both; }
+    .pickup-section          { animation: fadeUp 0.4s ease both; }
+
+    /* ── Map container responsive ── */
+    .pickup-map-container .leaflet-container {
+      width: 100% !important;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* ── Mobile small (320px) ── */
+    @media (max-width: 359px) {
+      .pickup-page-wrap   { max-width: 100%; padding-left: 0; padding-right: 0; }
+      .pickup-content     { padding: 12px 10px 0 !important; }
+      .pickup-header      { padding: 10px 10px !important; gap: 8px !important; }
+      .pickup-greeting    { font-size: 13px !important; }
+      .pickup-map-height  { height: 200px !important; }
+      .pickup-loading-box { height: 200px !important; }
+      .pickup-action-bar  { padding: 10px 10px !important; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important; }
+      .pickup-service-card { padding: 12px 12px !important; gap: 10px !important; }
+      .pickup-icon-circle  { width: 40px !important; height: 40px !important; min-width: 40px !important; }
+      .pickup-eco-badge    { display: none; }
+    }
+
+    /* ── Mobile (360–430px) ── */
+    @media (min-width: 360px) and (max-width: 430px) {
+      .pickup-page-wrap   { max-width: 100%; }
+      .pickup-map-height  { height: 240px !important; }
+      .pickup-loading-box { height: 240px !important; }
+    }
+
+    /* ── Mobile large / Phablet (431px–599px) ── */
+    @media (min-width: 431px) and (max-width: 599px) {
+      .pickup-page-wrap   { max-width: 520px; }
+      .pickup-map-height  { height: 260px !important; }
+      .pickup-loading-box { height: 260px !important; }
+    }
+
+    /* ── Tablet (600px–1023px) ── */
+    @media (min-width: 600px) and (max-width: 1023px) {
+      .pickup-page-wrap   { max-width: 640px; }
+      .pickup-content     { padding: 24px 24px 0 !important; }
+      .pickup-header      { padding: 16px 24px !important; }
+      .pickup-map-height  { height: 320px !important; }
+      .pickup-loading-box { height: 320px !important; }
+      .pickup-action-bar  { padding: 16px 24px !important; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
+      .pickup-greeting    { font-size: 16px !important; }
+    }
+
+    /* ── Desktop & Laptop (1024px+) ── */
+    @media (min-width: 1024px) {
+      .pickup-page-wrap   { max-width: 700px; }
+      .pickup-content     { padding: 28px 28px 0 !important; }
+      .pickup-header      { padding: 16px 28px !important; }
+      .pickup-map-height  { height: 360px !important; }
+      .pickup-loading-box { height: 360px !important; }
+      /* Action bar accounts for sidebar width */
+      .pickup-action-bar  { left: 250px !important; padding: 16px 28px !important; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
+      .pickup-greeting    { font-size: 16px !important; }
+    }
+
+    /* ── Large desktop (1440px+) ── */
+    @media (min-width: 1440px) {
+      .pickup-page-wrap   { max-width: 760px; }
+      .pickup-map-height  { height: 400px !important; }
+      .pickup-loading-box { height: 400px !important; }
+    }
+
+    /* ── Reduced motion ── */
+    @media (prefers-reduced-motion: reduce) {
+      .pickup-section { animation: none !important; }
+      .pickup-gps-btn:hover,
+      .pickup-cancel-btn:hover,
+      .pickup-next-btn:hover,
+      .pickup-back-btn:hover { transform: none !important; }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -582,7 +716,7 @@ function PickupPage() {
       <main style={S.main}>
 
         {/* ── Sticky Header ─────────────────────────────────────────────────── */}
-        <header style={S.header}>
+        <header className="pickup-header" style={S.header}>
           <button
             className="pickup-back-btn"
             style={S.backBtn}
@@ -590,7 +724,7 @@ function PickupPage() {
             aria-label="Kembali"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-              stroke={T.green700} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              stroke="#15803d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
           </button>
@@ -607,23 +741,23 @@ function PickupPage() {
           </div>
 
           <div style={S.headerText}>
-            <div style={S.greeting}>Halo, {username} 👋</div>
+            <div className="pickup-greeting" style={S.greeting}>Halo, {username} 👋</div>
             <div style={S.subGreeting}>daur ulang sampahmu yuk!</div>
           </div>
 
         </header>
 
         {/* ── Page Body ─────────────────────────────────────────────────────── */}
-        <div style={S.pageWrap}>
-          <div style={S.content}>
+        <div className="pickup-page-wrap" style={S.pageWrap}>
+          <div className="pickup-content" style={S.content}>
 
             {/* Service Type Card */}
             <div className="pickup-section" style={{ animationDelay: "0.05s" }}>
               <p style={S.sectionLabel}>Tipe Pengangkutan</p>
-              <div style={S.serviceCard}>
+              <div className="pickup-service-card" style={S.serviceCard}>
                 <div style={S.serviceGlow} />
-                <div style={S.iconCircle}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                <div className="pickup-icon-circle" style={S.iconCircle}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
                     stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="1" y="3" width="15" height="13" rx="2"/>
                     <path d="M16 8h4l3 5v3h-7V8z"/>
@@ -631,7 +765,7 @@ function PickupPage() {
                     <circle cx="18.5" cy="18.5" r="2.5"/>
                   </svg>
                 </div>
-                <div>
+                <div style={S.serviceInfo}>
                   <div style={S.serviceTitle}>Jemput Sampah</div>
                   <div style={S.serviceSubtitle}>Petugas kami menjemput sampahmu</div>
                 </div>
@@ -658,29 +792,32 @@ function PickupPage() {
             <div className="pickup-section" style={{ ...S.mapSection, animationDelay: "0.15s" }}>
               <div style={S.mapCard}>
                 {isLocating && !position ? (
-                  <div style={S.mapLoadingBox}>
+                  <div className="pickup-loading-box" style={S.mapLoadingBox}>
                     <div style={S.spinner} />
                     <span style={S.loadingText}>Mendeteksi lokasi GPS…</span>
                   </div>
                 ) : (
                   <>
                     <style>{MAP_MODERN_CSS}</style>
-                    <MapContainer
-                      center={position || [-6.8915, 111.4944]}
-                      zoom={16}
-                      style={{ height: 280, width: "100%", borderRadius: "12px", overflow: "hidden" }}
-                      {...MAP_OPTIONS}
-                    >
-                      <TileLayer {...getTileLayerProps()} />
-                      {position && (
-                        <>
-                          <ChangeView center={position} zoom={16} />
-                          <Marker position={position} icon={redIcon}>
-                            <Popup>Lokasi Penjemputan</Popup>
-                          </Marker>
-                        </>
-                      )}
-                    </MapContainer>
+                    <div className="pickup-map-container">
+                      <MapContainer
+                        center={position || [-6.8915, 111.4944]}
+                        zoom={16}
+                        className="pickup-map-height"
+                        style={{ height: 240, width: "100%", borderRadius: "12px", overflow: "hidden" }}
+                        {...MAP_OPTIONS}
+                      >
+                        <TileLayer {...getTileLayerProps()} />
+                        {position && (
+                          <>
+                            <ChangeView center={position} zoom={16} />
+                            <Marker position={position} icon={redIcon}>
+                              <Popup>Lokasi Penjemputan</Popup>
+                            </Marker>
+                          </>
+                        )}
+                      </MapContainer>
+                    </div>
 
                     {/* Floating overlay */}
                     <div style={S.mapOverlay}>
@@ -742,7 +879,7 @@ function PickupPage() {
         </div>{/* end pageWrap */}
 
         {/* ── Sticky Action Bar ─────────────────────────────────────────────── */}
-        <div style={S.actionBar}>
+        <div className="pickup-action-bar" style={S.actionBar}>
           <button
             className="pickup-cancel-btn"
             style={S.cancelBtn}

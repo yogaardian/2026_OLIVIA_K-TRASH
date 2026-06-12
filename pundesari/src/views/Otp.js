@@ -38,24 +38,89 @@ function OTPPage() {
   }, [countdown]);
 
   const handleOtpChange = (index, value) => {
-    if (/^\d$/.test(value) || value === "") {
+    const normalizedValue = value;
+    if (/^[A-Za-z0-9]$/.test(normalizedValue) || value === "") {
       const newOtp = [...otp];
-      newOtp[index] = value;
+      newOtp[index] = normalizedValue;
       setOtp(newOtp);
-      if (value && index < 5) inputRefs.current[index + 1].focus();
+      if (normalizedValue && index < 5) {
+        inputRefs.current[index + 1]?.focus();
+      }
       if (error) setError("");
     }
   };
 
-  const handlePaste = (e) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData("text").slice(0, 6);
-    if (/^\d{1,6}$/.test(pasted)) {
-      const newOtp = Array(6).fill("");
-      pasted.split("").forEach((char, i) => (newOtp[i] = char));
-      setOtp(newOtp);
-      inputRefs.current[Math.min(pasted.length, 5)].focus();
+  const handleOtpKeyDown = async (index, event) => {
+    const key = event.key;
+    const isModifier = event.ctrlKey || event.metaKey;
+
+    if (isModifier && key.toLowerCase() === 'c') {
+      event.preventDefault();
+      const otpCode = otp.join('');
+      try {
+        await navigator.clipboard.writeText(otpCode);
+      } catch (err) {
+        console.error('Gagal menyalin OTP:', err);
+      }
+      return;
     }
+
+    if (key === 'Backspace') {
+      event.preventDefault();
+      if (otp[index] !== '') {
+        const newOtp = [...otp];
+        newOtp[index] = '';
+        setOtp(newOtp);
+        return;
+      }
+      if (index > 0) {
+        inputRefs.current[index - 1]?.focus();
+        const newOtp = [...otp];
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+      }
+      return;
+    }
+
+    if (key === 'Delete') {
+      event.preventDefault();
+      if (otp[index] !== '') {
+        const newOtp = [...otp];
+        newOtp[index] = '';
+        setOtp(newOtp);
+      }
+      return;
+    }
+
+    if (key === 'ArrowLeft' && index > 0) {
+      event.preventDefault();
+      inputRefs.current[index - 1]?.focus();
+      return;
+    }
+
+    if (key === 'ArrowRight' && index < otp.length - 1) {
+      event.preventDefault();
+      inputRefs.current[index + 1]?.focus();
+      return;
+    }
+  };
+
+  const handlePaste = (e) => {
+    const pasted = e.clipboardData.getData("text").trim();
+    if (!/^[A-Za-z0-9]{1,6}$/.test(pasted)) {
+      return;
+    }
+    e.preventDefault();
+    const newOtp = Array(6).fill("");
+    pasted.split("").forEach((char, i) => {
+      if (i < 6) newOtp[i] = char;
+    });
+    setOtp(newOtp);
+    inputRefs.current[Math.min(pasted.length, 5)]?.focus();
+  };
+
+  const handleOtpFocus = (index) => {
+    inputRefs.current[index]?.select();
   };
 
   const handleVerify = async (e) => {
@@ -74,11 +139,10 @@ function OTPPage() {
         const userData = data.user;
         const role = userData.role || 'user';
         const profileRole = role === 'driver' ? 'petugas' : role;
-        const storedProfile = loadStoredProfile(profileRole);
         const profilePhoto =
-          userData.profile_photo !== undefined && userData.profile_photo !== null
+          userData.profile_photo && String(userData.profile_photo).trim() !== ""
             ? userData.profile_photo
-            : storedProfile.profilePhoto || null;
+            : null;
 
         saveProfile(profileRole, {
           id: userData.id,
@@ -145,10 +209,12 @@ function OTPPage() {
                 key={i}
                 ref={(el) => (inputRefs.current[i] = el)}
                 type="text"
-                inputMode="numeric"
+                inputMode="text"
                 maxLength={1}
                 value={digit}
                 onChange={(e) => handleOtpChange(i, e.target.value)}
+                onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                onFocus={() => handleOtpFocus(i)}
                 onPaste={handlePaste}
                 className={`otp-input ${digit ? "filled" : ""}`}
               />

@@ -25,9 +25,11 @@ const { apiLimiter } = require('./src/middleware/rateLimiter');
 const socketAuthMiddleware = require('./src/middleware/socketAuth');
 const setupSocketHandlers = require('./src/socket/handlers');
 const socketService = require('./src/services/socketService');
+const socketEvents = require('./src/constants/socketEvents');
 const newAuthRoutes = require('./src/routes/newAuthRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
 const productRoutes = require('./src/routes/productRoutes');
+const wasteRoutes = require('./src/routes/wasteRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -84,8 +86,22 @@ io.use(socketAuthMiddleware);
 setupSocketHandlers(io);
 socketService.initializeSocket(io);
 
+io.engine.on('connection', (engineSocket) => {
+  console.log('[Engine] new engine connection:', engineSocket.id);
+  engineSocket.on('packet', (packet) => {
+    console.log('[Engine] packet:', packet);
+  });
+  engineSocket.on('error', (err) => {
+    console.error('[Engine] transport error:', err);
+  });
+  engineSocket.on('close', (reason) => {
+    console.warn('[Engine] transport close:', reason);
+  });
+});
+
 // Routes
 app.use('/api/auth', newAuthRoutes);
+app.use('/api', wasteRoutes);
 app.use('/', orderRoutes);
 app.use('/products', productRoutes);
 app.use('/marketplace', require('./src/routes/marketplaceRoutes'));
@@ -224,6 +240,9 @@ async function seedDefaultAccounts() {
     const [userColumns] = await db.query('SHOW COLUMNS FROM users');
     const userColumnNames = userColumns.map(col => col.Field);
 
+    if (!userColumnNames.includes('google_id')) {
+      await db.query('ALTER TABLE users ADD COLUMN google_id VARCHAR(255) NULL UNIQUE AFTER email');
+    }
     if (!userColumnNames.includes('saldo')) {
       await db.query('ALTER TABLE users ADD COLUMN saldo DECIMAL(15,2) NOT NULL DEFAULT 0 AFTER role');
     }
@@ -239,7 +258,7 @@ async function seedDefaultAccounts() {
 
     const minimumHold = 50000;
     await db.query('UPDATE users SET saldo_hold = LEAST(saldo, ?) WHERE saldo_hold = 0', [minimumHold]);
-    console.log('Ensured users table has saldo, saldo_hold, and updated_at columns');
+    console.log('Ensured users table has google_id, saldo, saldo_hold, and updated_at columns');
   } catch (err) {
     console.error('Error ensuring users schema:', err);
   }
@@ -998,7 +1017,13 @@ app.get('/orders/:id', authenticateToken, async (req, res) => {
     }
 
     const [result] = await db.query(
-      'SELECT id, user_id, driver_id, address, user_lat, user_lng, jenis_sampah, catatan, status, sampah_data, total_berat, total_harga FROM orders WHERE id = ?',
+      `SELECT o.id, o.user_id, o.driver_id, o.address, o.user_lat, o.user_lng, o.jenis_sampah, o.catatan, o.status, o.sampah_data, o.total_berat, o.total_harga,
+        u.nama AS user_name, u.profile_photo AS user_profile_photo, u.nomor_hp AS user_phone,
+        d.nama AS driver_name, d.profile_photo AS driver_profile_photo, d.nomor_hp AS driver_phone
+      FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
+      LEFT JOIN users d ON o.driver_id = d.id
+      WHERE o.id = ?`,
       [orderId],
     );
 
@@ -1031,7 +1056,7 @@ app.patch('/orders/accept/:id', authenticateToken, requireRole(['driver','petuga
 
     const sql = `
       UPDATE orders
-      SET driver_id = ?, status = 'assigned'
+      SET driver_id = ?, status = 'on_the_way'
       WHERE id = ? AND status = 'pending'
     `;
 
@@ -1039,6 +1064,17 @@ app.patch('/orders/accept/:id', authenticateToken, requireRole(['driver','petuga
 
     if (result.affectedRows === 0) {
       return res.status(400).json({ status: 'fail', message: 'Order sudah diambil' });
+    }
+
+    const [updatedRows] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    if (updatedRows.length > 0) {
+      const updatedOrder = updatedRows[0];
+      socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_STATUS_CHANGED, { order: updatedOrder });
+      socketService.emitToUser(updatedOrder.user_id, socketEvents.SERVER.ORDER_STATUS_CHANGED, { order: updatedOrder });
+      socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_ACCEPTED, { order: updatedOrder });
+      socketService.emitToUser(updatedOrder.user_id, socketEvents.SERVER.ORDER_ACCEPTED, { order: updatedOrder });
+      socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_ON_THE_WAY, { order: updatedOrder });
+      socketService.emitToUser(updatedOrder.user_id, socketEvents.SERVER.ORDER_ON_THE_WAY, { order: updatedOrder });
     }
 
     res.json({ status: 'success' });
@@ -1119,6 +1155,25 @@ app.patch('/orders/status/:id', authenticateToken, requireRole(['driver','petuga
     }
 
     await connection.commit();
+
+    const [updatedRows] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    if (updatedRows.length > 0) {
+      const updatedOrder = updatedRows[0];
+      socketService.emitToOrder(orderId, socketEvents.SERVER.ORDER_STATUS_CHANGED, { order: updatedOrder });
+      socketService.emitToUser(updatedOrder.user_id, socketEvents.SERVER.ORDER_STATUS_CHANGED, { order: updatedOrder });
+      const statusEvent = {
+        // assigned does not emit a dedicated specific event here;
+        // the client should consume ORDER_STATUS_CHANGED for the assigned transition.
+        on_the_way: socketEvents.SERVER.ORDER_ON_THE_WAY,
+        arrived: socketEvents.SERVER.ORDER_ARRIVED,
+        completed: socketEvents.SERVER.ORDER_COMPLETED,
+      }[updatedOrder.status];
+      if (statusEvent) {
+        socketService.emitToOrder(orderId, statusEvent, { order: updatedOrder });
+        socketService.emitToUser(updatedOrder.user_id, statusEvent, { order: updatedOrder });
+      }
+    }
+
     res.json({ status: 'success', message: 'Status order berhasil diperbarui' });
   } catch (err) {
     if (connection) await connection.rollback();
@@ -1161,6 +1216,22 @@ app.post('/driver/location', authenticateToken, requireRole(['driver','petugas']
       'INSERT INTO driver_locations (driver_id, order_id, lat, lng) VALUES (?, ?, ?, ?)',
       [driver_id, order_id, lat, lng],
     );
+
+    socketService.emitToOrder(order_id, socketEvents.SERVER.DRIVER_LOCATION_UPDATED, {
+      orderId: order_id,
+      driverId: driver_id,
+      lat,
+      lng,
+      timestamp: new Date().toISOString(),
+    });
+
+    socketService.emitToUser(order.user_id, socketEvents.SERVER.DRIVER_LOCATION_UPDATED, {
+      orderId: order_id,
+      driverId: driver_id,
+      lat,
+      lng,
+      timestamp: new Date().toISOString(),
+    });
 
     res.json({ status: 'success', message: 'Lokasi driver tersimpan' });
   } catch (err) {
@@ -1496,6 +1567,15 @@ app.get('/transactions', authenticateToken, requireRole(['admin']), async (req, 
     console.error('Error creating tables:', err);
   }
 })();
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} sudah digunakan. Hentikan proses lain yang memakai port ini atau atur PORT berbeda di .env`);
+    process.exit(1);
+  }
+  console.error('Server error:', err);
+  process.exit(1);
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server jalan di port ${PORT} pada 0.0.0.0 dengan Socket.IO`);

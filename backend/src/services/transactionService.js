@@ -31,6 +31,13 @@ async function setMinimumHoldBalance(amount) {
      ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
     [HOLD_SETTING_KEY, String(amount)],
   );
+
+  // Recalculate the hold balance for all users so the new minimum is applied immediately.
+  await db.query(
+    'UPDATE users SET saldo_hold = LEAST(saldo, ?), updated_at = NOW()',
+    [amount],
+  );
+
   return safeNumber(amount);
 }
 

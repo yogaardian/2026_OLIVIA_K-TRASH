@@ -26,9 +26,10 @@ function User() {
       setUsers(response.data.map(user => ({
         id: user.id,
         nama: user.nama,
+        email: user.email,
         hp: user.nomor_hp,
         role: user.role,
-        status: user.status || "Aktif",
+        status: 'Aktif',
       })));
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
@@ -45,22 +46,28 @@ function User() {
 
   // form input
   const [nama, setNama] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [hp, setHp] = useState("");
-  const [status, setStatus] = useState("");
 
-  // tambah usere
-  const tambahUsr = async () => {
-    if (nama === "" || hp === "" || status === "") {
+  // tambah user
+  const tambahUser = async () => {
+    if (!nama || !email || !password || !hp) {
       alert("Isi semua data!");
+      return;
+    }
+
+    if (password.length < 6) {
+      alert("Password minimal 6 karakter");
       return;
     }
 
     try {
       const newUser = {
         nama,
-        email: `${nama.toLowerCase().replace(/\s+/g, '.')}@ktrash.local`,
-        password: '123456',
-        role: 'petugas',
+        email: email.toLowerCase(),
+        password,
+        role: 'driver',
         nomor_hp: hp,
       };
 
@@ -68,9 +75,11 @@ function User() {
       await fetchDrivers();
 
       setNama("");
+      setEmail("");
+      setPassword("");
       setHp("");
-      setStatus("");
       setShowForm(false);
+      alert('Petugas berhasil ditambahkan. Email dan password dapat digunakan untuk login.');
     } catch (error) {
       console.error('Failed to add petugas:', error);
       alert('Gagal menambahkan petugas. Coba lagi.');
@@ -137,11 +146,12 @@ function User() {
               <Card>
                 <Card.Body>
 
-                  <h5 className="mb-3">Tambah User</h5>
+                  <h5 className="mb-3">Tambah Petugas</h5>
+                  <p className="text-muted">Petugas baru dapat login menggunakan email dan password di bawah ini.</p>
 
                   <Row>
 
-                    <Col md="4">
+                    <Col md="3">
                       <Form.Group>
                         <Form.Label>Nama</Form.Label>
 
@@ -154,7 +164,33 @@ function User() {
                       </Form.Group>
                     </Col>
 
-                    <Col md="4">
+                    <Col md="3">
+                      <Form.Group>
+                        <Form.Label>Email</Form.Label>
+
+                        <Form.Control
+                          type="email"
+                          placeholder="Masukkan Email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                      </Form.Group>
+                    </Col>
+
+                    <Col md="3">
+                      <Form.Group>
+                        <Form.Label>Password</Form.Label>
+
+                        <Form.Control
+                          type="password"
+                          placeholder="Masukkan Password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
+                      </Form.Group>
+                    </Col>
+
+                    <Col md="3">
                       <Form.Group>
                         <Form.Label>No HP</Form.Label>
 
@@ -163,19 +199,6 @@ function User() {
                           placeholder="Masukkan No HP"
                           value={hp}
                           onChange={(e) => setHp(e.target.value)}
-                        />
-                      </Form.Group>
-                    </Col>
-
-                    <Col md="4">
-                      <Form.Group>
-                        <Form.Label>Status</Form.Label>
-
-                        <Form.Control
-                          type="text"
-                          placeholder="Aktif / Offline"
-                          value={status}
-                          onChange={(e) => setStatus(e.target.value)}
                         />
                       </Form.Group>
                     </Col>
@@ -238,6 +261,7 @@ function User() {
                       <tr>
                         <th>ID</th>
                         <th>Nama</th>
+                        <th>Email</th>
                         <th>No HP</th>
                         <th>Status</th>
                         <th>Aksi</th>
@@ -256,6 +280,7 @@ function User() {
 
                             <td>{user.id}</td>
                             <td>{user.nama}</td>
+                            <td>{user.email}</td>
                             <td>{user.hp}</td>
                             <td>{user.status}</td>
 

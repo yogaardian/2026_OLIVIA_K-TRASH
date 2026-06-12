@@ -160,13 +160,9 @@ function DriverCard({ petugasProfile, driverInfo, orderStatus }) {
           <span style={S.onlinePulse} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={S.driverName}>{petugasProfile?.name || "Petugas"}</div>
-          <div style={S.driverMeta}>ID: {petugasProfile?.id || driverInfo?.id || "—"}</div>
+          <div style={S.driverName}>{petugasProfile?.name || "Petugas"}</div>          <div style={S.driverMeta}>ID: {petugasProfile?.id || driverInfo?.id || "—"}</div>
           {(petugasProfile?.phoneNumber || driverInfo?.phone) && (
             <div style={S.driverPhone}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.green600} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.16 6.16l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-              </svg>
               {petugasProfile?.phoneNumber || driverInfo?.phone}
             </div>
           )}
@@ -337,15 +333,18 @@ function TrackingPetugas() {
   const orderId = sessionStorage.getItem("current_order_id");
   const { activeOrder } = useOrder();
   const { subscribe, joinOrderRoom, leaveOrderRoom, isConnected } = useSocket();
-  const joinedOrderRef = useRef(null);
 
   const currentOrderId = orderId || activeOrder?.id;
+  const activeUserLocation = useMemo(() => {
+    if (!activeOrder?.user_lat || !activeOrder?.user_lng) return null;
+    return [Number(activeOrder.user_lat), Number(activeOrder.user_lng)];
+  }, [activeOrder]);
 
   // ── ALL ORIGINAL STATE (preserved) ──
   const [driverLocation, setDriverLocation] = useState(null);
-  const [userLocation, setUserLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(activeUserLocation);
   const [routeGeoJson, setRouteGeoJson] = useState(null);
-  const [userAddress, setUserAddress] = useState("");
+  const [userAddress, setUserAddress] = useState(activeOrder?.address || "");
   const [driverInfo, setDriverInfo] = useState(null);
   const [orderStatus, setOrderStatus] = useState("assigned");
   const petugasProfile = useMemo(
@@ -365,12 +364,22 @@ function TrackingPetugas() {
   const [driverSmoothPos, setDriverSmoothPos] = useState(null);
   const [userSmoothPos, setUserSmoothPos] = useState(null);
 
+  useEffect(() => {
+    if (!userLocation && activeUserLocation) {
+      setUserLocation(activeUserLocation);
+    }
+    if (!userAddress && activeOrder?.address) {
+      setUserAddress(activeOrder.address);
+    }
+  }, [activeUserLocation, activeOrder?.address, userAddress, userLocation]);
+
   // Routing refs (PRESERVED)
   const routeCacheRef = useRef(new Map());
   const lastRouteTimeRef = useRef(0);
   const inFlightRef = useRef(false);
   const abortControllerRef = useRef(null);
   const lastFetchedPositionsRef = useRef(null);
+  const mapRef = useRef(null);
   const MIN_ROUTE_INTERVAL = 5000;
   const MOVE_THRESHOLD_METERS = 50;
 
@@ -454,23 +463,67 @@ function TrackingPetugas() {
     if (!currentOrderId) return;
     try {
       const response = await locationAPI.getTracking(currentOrderId);
-      if (response.data.status === "success") {
-        if (response.data.driver_lat != null && response.data.driver_lng != null) {
-          setDriverLocation([Number(response.data.driver_lat), Number(response.data.driver_lng)]);
+      const data = response.data;
+
+      // Support two response formats:
+      // 1) Modern API returning an object with many fields (status === 'success', driver_lat, driver_lng, user_lat, ...)
+      // 2) Legacy/simple endpoint that returns a single driver_locations row: { id, driver_id, order_id, lat, lng, created_at }
+      if (data) {
+        let latestDriver = null;
+
+        // Format 1: explicit driver_lat/driver_lng or locations array
+        if (data.driver_lat != null && data.driver_lng != null) {
+          latestDriver = [Number(data.driver_lat), Number(data.driver_lng)];
+        } else if (Array.isArray(data.locations) && data.locations.length > 0) {
+          const lastLocation = data.locations[data.locations.length - 1];
+          if (lastLocation?.lat != null && lastLocation?.lng != null) {
+            latestDriver = [Number(lastLocation.lat), Number(lastLocation.lng)];
+          }
         }
-        if (response.data.user_lat != null && response.data.user_lng != null) {
-          setUserLocation([Number(response.data.user_lat), Number(response.data.user_lng)]);
+
+        // Format 2: direct row from driver_locations -> has lat & lng
+        if (!latestDriver && data.lat != null && data.lng != null) {
+          latestDriver = [Number(data.lat), Number(data.lng)];
         }
-        if (response.data.address) setUserAddress(response.data.address);
-        setDriverInfo({ name: response.data.driver_name || "Petugas", id: response.data.driver_id, phone: response.data.driver_phone || "-" });
-        const nextStatus = response.data.order_status || "assigned";
-        if (nextStatus === "arrived" && orderStatusRef.current !== "arrived") setArrivedNotification(true);
-        orderStatusRef.current = nextStatus;
-        setOrderStatus(nextStatus);
-        if (response.data.sampah_data) {
-          setSampahData(response.data.sampah_data);
-          setTotalBerat(response.data.total_berat || 0);
-          setTotalHarga(response.data.total_harga || 0);
+
+        if (latestDriver) setDriverLocation(latestDriver);
+
+        // user location/address (may not be present from simple endpoint)
+        if (data.user_lat != null && data.user_lng != null) {
+          setUserLocation([Number(data.user_lat), Number(data.user_lng)]);
+        } else if (activeUserLocation) {
+          setUserLocation(activeUserLocation);
+        }
+        if (data.address) setUserAddress(data.address);
+
+        // driver info (may only have driver_id in simple row)
+        setDriverInfo({ name: data.driver_name || data.driver || "Petugas", id: data.driver_id || data.driver || null, phone: data.driver_phone || data.phone || "-" });
+
+        const nextStatus = data.order_status || data.status || null;
+        const normalizedStatus = nextStatus ? String(nextStatus).trim() : null;
+        const effectiveStatus = normalizedStatus || orderStatusRef.current || activeOrder?.status || "assigned";
+        if (normalizedStatus === "arrived" && orderStatusRef.current !== "arrived") setArrivedNotification(true);
+        if (normalizedStatus) {
+          orderStatusRef.current = normalizedStatus;
+          setOrderStatus(normalizedStatus);
+        } else if (!orderStatusRef.current) {
+          orderStatusRef.current = effectiveStatus;
+          setOrderStatus(effectiveStatus);
+        }
+
+        if (data.sampah_data) {
+          setSampahData(data.sampah_data);
+          setTotalBerat(data.total_berat || 0);
+          setTotalHarga(data.total_harga || 0);
+        }
+
+        const finalUser = data.user_lat != null && data.user_lng != null
+          ? [Number(data.user_lat), Number(data.user_lng)]
+          : (activeUserLocation || userLocation);
+
+        if (latestDriver && finalUser && mapRef.current) {
+          try { mapRef.current.fitBounds([latestDriver, finalUser], { padding: [40, 40], maxZoom: 16, animate: true }); }
+          catch (e) {}
         }
       }
     } catch (err) {
@@ -493,20 +546,16 @@ function TrackingPetugas() {
   }, [currentOrderId, history, fetchTracking]);
 
   useEffect(() => {
+    console.log('[TRACKING PETUGAS] join room effect', { currentOrderId, isConnected });
     if (!currentOrderId || !isConnected) return;
-    if (joinedOrderRef.current === String(currentOrderId)) return;
 
-    if (joinedOrderRef.current) {
-      leaveOrderRoom(joinedOrderRef.current);
-    }
-
+    console.log('[TRACKING PETUGAS] joining order room', currentOrderId);
     joinOrderRoom(currentOrderId);
-    joinedOrderRef.current = String(currentOrderId);
 
     return () => {
-      if (joinedOrderRef.current === String(currentOrderId)) {
+      if (currentOrderId) {
+        console.log('[TRACKING PETUGAS] leaving order room on cleanup', currentOrderId);
         leaveOrderRoom(currentOrderId);
-        joinedOrderRef.current = null;
       }
     };
   }, [currentOrderId, isConnected, joinOrderRoom, leaveOrderRoom]);
@@ -522,6 +571,67 @@ function TrackingPetugas() {
     });
     return () => unsubscribe && unsubscribe();
   }, [subscribe, currentOrderId]);
+
+  useEffect(() => {
+    if (!subscribe || !currentOrderId) return;
+
+    const extractOrderStatus = (data) => {
+      if (!data) return null;
+      if (data.order?.status) return data.order.status;
+      if (data.status) return data.status;
+      if (data.order_status) return data.order_status;
+      return null;
+    };
+
+    const updateStatus = (nextStatus) => {
+      if (!nextStatus) return;
+      if (nextStatus === 'arrived' && orderStatusRef.current !== 'arrived') {
+        setArrivedNotification(true);
+      }
+      orderStatusRef.current = nextStatus;
+      setOrderStatus(nextStatus);
+    };
+
+    const handleOrderEvent = async (data, eventName) => {
+      console.log('[TRACKING PETUGAS EVENT]', eventName, { data, currentOrderId });
+      if (!data) return;
+      const eventOrderId = data.order?.id || data.orderId || data.order_id || data.orderId;
+      if (eventOrderId && String(eventOrderId) !== String(currentOrderId)) return;
+
+      const nextStatus = extractOrderStatus(data) || {
+        'order:accepted': 'on_the_way',
+        'order:on_the_way': 'on_the_way',
+        'order:arrived': 'arrived',
+        'order:completed': 'completed',
+      }[eventName];
+      if (nextStatus) {
+        console.log('[TRACKING PETUGAS] order event mapped nextStatus', { eventName, nextStatus });
+        updateStatus(nextStatus);
+      } else {
+        console.log('[TRACKING PETUGAS] order event no status mapping, fetching tracking', eventName);
+        await fetchTracking();
+      }
+
+      const sourceOrder = data.order || {};
+      if (sourceOrder.sampah_data) {
+        setSampahData(sourceOrder.sampah_data);
+        setTotalBerat(sourceOrder.total_berat || 0);
+        setTotalHarga(sourceOrder.total_harga || 0);
+      }
+    };
+
+    const events = [
+      'order:state',
+      'order:status_changed',
+      'order:accepted',
+      'order:on_the_way',
+      'order:arrived',
+      'order:completed',
+    ];
+
+    const unsubs = events.map((eventName) => subscribe(eventName, (data) => handleOrderEvent(data, eventName))).filter(Boolean);
+    return () => unsubs.forEach((unsubscribe) => unsubscribe && unsubscribe());
+  }, [subscribe, currentOrderId, fetchTracking]);
 
   useEffect(() => {
     if (orderStatus === "completed" && !completedRedirected) {
@@ -589,6 +699,11 @@ function TrackingPetugas() {
     setIsRefreshing(true);
     try {
       await fetchTracking();
+      const target = driverSmoothPos || driverLocation;
+      if (mapRef.current && target) {
+        try { mapRef.current.setView(target, 16, { animate: true }); }
+        catch (e) { /* ignore */ }
+      }
     } catch (err) {
       console.error('Refresh location failed:', err);
     } finally {
@@ -597,8 +712,16 @@ function TrackingPetugas() {
   };
   const handleCancel = () => { history.push("/user/dashboard"); };
 
-  const center = useMemo(() => driverLocation || userLocation || DEFAULT_CENTER, [driverLocation, userLocation]);
+  const currentUserLocation = userSmoothPos || userLocation || activeUserLocation;
+  const currentDriverLocation = driverSmoothPos || driverLocation;
+  const center = useMemo(() => currentDriverLocation || currentUserLocation || DEFAULT_CENTER, [currentDriverLocation, currentUserLocation]);
 
+  const isOverlap = useMemo(() => {
+    if (!currentUserLocation || !currentDriverLocation) return false;
+    try {
+      return haversine(currentUserLocation, currentDriverLocation) < 10; // meters
+    } catch (e) { return false; }
+  }, [currentUserLocation, currentDriverLocation]);
   if (loading) return <LoadingScreen />;
 
 console.log("=== TRACKING DEBUG ===");
@@ -661,7 +784,8 @@ console.log("orderStatus:", orderStatus);
               <MapContainer
                 center={center} zoom={15}
                 style={{ height: "100%", width: "100%" }}
-                {...MAP_OPTIONS}
+                  {...MAP_OPTIONS}
+                  whenCreated={(m) => (mapRef.current = m)}
                 zoomControl={false}
               >
                 <TileLayer {...getTileLayerProps()} />
@@ -671,14 +795,14 @@ console.log("orderStatus:", orderStatus);
                   <GeoJSON data={kecamatanGeoJson} style={{ color: T.green600, weight: 1, fillOpacity: 0.03, opacity: 0.35 }} smoothFactor={1} />
                 )}
 
-                {(userSmoothPos || userLocation) && (
-                  <Marker position={userSmoothPos || userLocation} icon={redIcon}>
+                {currentUserLocation && (
+                  <Marker position={currentUserLocation} icon={redIcon} zIndexOffset={isOverlap ? -1000 : 0}>
                     <Popup>📍 Lokasi Anda — {userAddress || "Alamat Anda"}</Popup>
                   </Marker>
                 )}
 
-                {(driverSmoothPos || driverLocation) && (
-                  <Marker position={driverSmoothPos || driverLocation} icon={blueIcon}>
+                {currentDriverLocation && (
+                  <Marker position={currentDriverLocation} icon={blueIcon} zIndexOffset={isOverlap ? 1000 : 0}>
                     <Popup>🚗 Lokasi Petugas</Popup>
                   </Marker>
                 )}
@@ -689,13 +813,13 @@ console.log("orderStatus:", orderStatus);
                     data={routeGeoJson}
                     style={{ color: T.green500, weight: 5, opacity: 0.9, lineCap: "round" }}
                   />
-                ) : (driverLocation && userLocation && (
-                  <Polyline positions={[userLocation, driverLocation]} pathOptions={{ color: T.green500, weight: 5, dashArray: "8 6" }} />
+                ) : (currentDriverLocation && currentUserLocation && (
+                  <Polyline positions={[currentUserLocation, currentDriverLocation]} pathOptions={{ color: T.green500, weight: 5, dashArray: "8 6" }} />
                 ))}
 
                 <FitRouteBounds
-                  userLocation={userSmoothPos || userLocation}
-                  driverLocation={driverSmoothPos || driverLocation}
+                  userLocation={currentUserLocation}
+                  driverLocation={currentDriverLocation}
                   routeGeoJson={routeGeoJson}
                 />
               </MapContainer>

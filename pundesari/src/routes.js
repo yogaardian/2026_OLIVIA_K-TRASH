@@ -22,7 +22,6 @@ import WasteManagement from "views/admin/WasteManagement.js";
 import Icons from "views/admin/Icons.js";
 import Maps from "views/admin/Maps.js";
 import Notifications from "views/admin/Notifications.js";
-import Upgrade from "views/admin/Upgrade.js";
 import Saldo from "views/admin/SaldoAdmin.js";
 import MarketplaceAdmin from "views/admin/MarketplaceAdmin.js";
 

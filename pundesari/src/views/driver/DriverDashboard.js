@@ -51,7 +51,7 @@ function DriverProfile({ nama, profilePhoto, isOnline, onToggleOnline, onLogout,
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div style={styles.profileCard}>
+    <div className="profile-card">
       <div style={styles.profileLeft}>
         <div style={styles.avatarRing}>
           <button style={styles.avatarButton} onClick={() => setMenuOpen((open) => !open)} title="Menu Profil">
@@ -75,8 +75,8 @@ function DriverProfile({ nama, profilePhoto, isOnline, onToggleOnline, onLogout,
             </div>
           )}
         </div>
-        <div>
-          <div style={styles.profileName}>{nama}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={styles.profileName} className="profile-name-text">{nama}</div>
           <div style={styles.profileRole}>Petugas BankTrash</div>
         </div>
       </div>
@@ -95,7 +95,7 @@ function DriverProfile({ nama, profilePhoto, isOnline, onToggleOnline, onLogout,
 
 function StatusBar({ driverLocation, activeOrder }) {
   return (
-    <div style={styles.statusBar}>
+    <div className="status-bar">
       <StatusChip icon="📍" label="GPS" value={`${driverLocation[0].toFixed(4)}, ${driverLocation[1].toFixed(4)}`} color="#3b82f6" />
       <StatusChip icon="📦" label="Order" value={activeOrder ? `#${activeOrder.id}` : "—"} color={activeOrder ? "#f59e0b" : "#475569"} />
     </div>
@@ -104,11 +104,11 @@ function StatusBar({ driverLocation, activeOrder }) {
 
 function StatusChip({ icon, label, value, color }) {
   return (
-    <div style={{ ...styles.chip, borderColor: color + "33", background: color + "11" }}>
+    <div className="status-chip" style={{ borderColor: color + "33", background: color + "11" }}>
       <span style={{ fontSize: 13 }}>{icon}</span>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 9, color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1 }}>{label}</div>
-        <div style={{ fontSize: 11, color, fontWeight: 600, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.4 }}>{value}</div>
+        <div className="chip-value" style={{ color, fontWeight: 600, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.4 }}>{value}</div>
       </div>
     </div>
   );
@@ -122,7 +122,7 @@ function ActiveOrderCard({ order, onComplete }) {
         <span style={styles.sectionTitle}>Active Order</span>
         <span style={styles.activeBadge}>LIVE</span>
       </div>
-      <div style={styles.orderCard}>
+      <div className="order-card">
         <div style={styles.orderCardTop}>
           <div style={styles.userBubble}>{String(order.user_id).charAt(0).toUpperCase()}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -159,7 +159,7 @@ function PendingOrderCard({ order, customerProfile, onAccept, onReject, isAccept
   const displayName = customerProfile?.name || `User ${order.user_id}`;
   const avatar = customerProfile?.profilePhoto;
   return (
-    <div style={styles.orderCard}>
+    <div className="order-card">
       <div style={styles.orderCardTop}>
         <div style={styles.userBubble}>
           {avatar ? (
@@ -253,6 +253,43 @@ function DriverDashboard() {
   const [error, setError] = useState(null);
   const [acceptingOrder, setAcceptingOrder] = useState(null);
 
+  const getOrderStatus = (order) => {
+    return order?.status || order?.order_status || order?.state || null;
+  };
+
+  useEffect(() => {
+    if (!activeOrder) return;
+
+    let isMounted = true;
+    const checkOrderStatus = async () => {
+      try {
+        const res = await ordersAPI.getOrderDetail(activeOrder.id);
+        const status = getOrderStatus(res?.data);
+        if (!isMounted || !status) return;
+
+        if (['cancelled', 'completed', 'rejected'].includes(status)) {
+          setActiveOrder(null);
+          setOrders((prev) => prev.filter((o) => o.id !== activeOrder.id));
+          alert("⚠️ Order dibatalkan oleh pengguna.");
+          return;
+        }
+
+        if (status !== getOrderStatus(activeOrder)) {
+          setActiveOrder((prev) => (prev ? { ...prev, status } : prev));
+        }
+      } catch (err) {
+        console.error("Failed to refresh active order status:", err);
+      }
+    };
+
+    checkOrderStatus();
+    const interval = setInterval(checkOrderStatus, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeOrder]);
+
   // ── All original effects preserved ──
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -305,7 +342,7 @@ function DriverDashboard() {
       setAcceptingOrder(order.id);
       const res = await ordersAPI.acceptOrder(order.id, parseInt(driverId));
       if (res.data.status === "success") {
-        setActiveOrder(order);
+        setActiveOrder({ ...order, status: "on_the_way" });
         setOrders(orders.filter(o => o.id !== order.id));
         alert("✅ Order diterima!");
       } else {
@@ -361,10 +398,10 @@ function DriverDashboard() {
   return (
     <>
       <style>{CSS}{MAP_MODERN_CSS}</style>
-      <div style={styles.root}>
+      <div className="dd-root">
 
-        {/* ── LEFT: Map Panel ── */}
-        <div style={styles.mapPanel}>
+        {/* ── LEFT/TOP: Map Panel ── */}
+        <div className="dd-map-panel">
           <MapContainer center={driverLocation} zoom={14} style={{ height: "100%", width: "100%", borderRadius: "8px", overflow: "hidden" }} {...MAP_OPTIONS}>
             <TileLayer {...getTileLayerProps()} />
             <ChangeView center={driverLocation} zoom={14} />
@@ -388,18 +425,18 @@ function DriverDashboard() {
           <MapOverlay isOnline={isOnline} driverLocation={driverLocation} activeOrder={activeOrder} />
 
           {/* Debug panel - floating bottom-left */}
-          <div style={styles.debugPanel}>
+          <div className="dd-debug-panel">
             <span style={{ color: "#3b82f6", fontWeight: 700 }}>GPS</span>
             {" "}{driverLocation[0].toFixed(5)}, {driverLocation[1].toFixed(5)}
             {activeOrder && <span style={{ color: "#f59e0b", marginLeft: 8 }}>• Order #{activeOrder.id}</span>}
           </div>
         </div>
 
-        {/* ── RIGHT: Order Panel ── */}
-        <div style={styles.orderPanel} className="order-panel-scroll">
+        {/* ── RIGHT/BOTTOM: Order Panel ── */}
+        <div className="dd-order-panel order-panel-scroll">
 
           {/* Sticky Header */}
-          <div style={styles.panelHeader}>
+          <div className="dd-panel-header">
             <DriverProfile
               nama={nama}
               profilePhoto={profilePhoto}
@@ -412,7 +449,7 @@ function DriverDashboard() {
           </div>
 
           {/* Scrollable body */}
-          <div style={styles.panelBody}>
+          <div className="dd-panel-body">
             {activeOrder ? (
               <ActiveOrderCard order={activeOrder} onComplete={handleCompleteOrder} />
             ) : (
@@ -460,22 +497,120 @@ function DriverDashboard() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles (non-responsive, supplemented by CSS classes below) ──────────────
 const styles = {
-  root: {
+  profileLeft: {
     display: "flex",
-    height: "100vh",
-    width: "100vw",
-    overflow: "hidden",
-    background: "#0a0f1a",
-    fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+    flex: 1,
   },
-
-  // Map
-  mapPanel: {
-    flex: "1 1 70%",
+  avatarRing: {
     position: "relative",
+    flexShrink: 0,
+  },
+  avatarButton: {
+    width: 42,
+    height: 42,
+    borderRadius: "50%",
+    background: "rgba(34,197,94,0.1)",
+    border: "2px solid rgba(34,197,94,0.3)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    padding: 0,
+    outline: "none",
+    borderStyle: "solid",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: "50%",
+    objectFit: "cover",
+  },
+  profileMenu: {
+    position: "absolute",
+    top: "54px",
+    left: 0,
+    minWidth: 140,
+    background: "#fff",
+    borderRadius: 12,
+    boxShadow: "0 14px 40px rgba(0,0,0,0.14)",
+    border: "1px solid rgba(15,23,42,0.08)",
     overflow: "hidden",
+    zIndex: 1200,
+  },
+  profileMenuItem: {
+    width: "100%",
+    padding: "10px 14px",
+    background: "transparent",
+    border: "none",
+    textAlign: "left",
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background 0.15s ease",
+  },
+  onlineDot: {
+    position: "absolute",
+    bottom: 1,
+    right: 1,
+    width: 10,
+    height: 10,
+    borderRadius: "50%",
+    background: "#22c55e",
+    border: "2px solid #0d1321",
+    boxShadow: "0 0 0 3px rgba(34,197,94,0.2)",
+  },
+  profileName: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#000000",
+    letterSpacing: "0.01em",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  profileRole: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 1,
+  },
+  toggleWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  toggleTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    position: "relative",
+    transition: "background 0.3s ease",
+    flexShrink: 0,
+  },
+  toggleThumb: {
+    position: "absolute",
+    top: 2,
+    width: 20,
+    height: 20,
+    borderRadius: "50%",
+    background: "#fff",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+    transition: "transform 0.25s cubic-bezier(.4,0,.2,1)",
+  },
+  toggleLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    transition: "color 0.2s",
   },
   mapChipTopLeft: {
     position: "absolute",
@@ -539,192 +674,6 @@ const styles = {
     boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
     whiteSpace: "nowrap",
   },
-  debugPanel: {
-    position: "absolute",
-    bottom: 24,
-    left: 16,
-    zIndex: 800,
-    background: "rgba(10,15,26,0.75)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-    border: "1px solid rgba(255,255,255,0.06)",
-    borderRadius: 8,
-    padding: "5px 10px",
-    fontSize: 10,
-    fontFamily: "'JetBrains Mono', monospace",
-    color: "#64748b",
-    letterSpacing: "0.02em",
-    maxWidth: 280,
-  },
-
-  // Order Panel
-  orderPanel: {
-    flex: "0 0 360px",
-    width: 360,
-    background: "#eeeef0",
-    borderLeft: "1px solid rgba(255,255,255,0.06)",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    borderRight: "1px solid rgba(255,255,255,0.06)",
-  },
-  panelHeader: {
-    padding: "20px 20px 0",
-    borderBottom: "2px solid rgba(255,255,255,0.06)",
-    background: "#eeeef0",
-    flexShrink: 0,
-  },
-  panelBody: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "20px",
-  },
-
-  // Profile card
-  profileCard: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  profileLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-  },
-  avatarRing: {
-    position: "relative",
-    flexShrink: 0,
-  },
-  avatarButton: {
-    width: 42,
-    height: 42,
-    borderRadius: "50%",
-    background: "rgba(34,197,94,0.1)",
-    border: "2px solid rgba(34,197,94,0.3)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    transition: "all 0.2s",
-    padding: 0,
-    outline: "none",
-    borderStyle: "solid",
-  },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: "50%",
-    objectFit: "cover",
-  },
-  profileMenu: {
-    position: "absolute",
-    top: "54px",
-    left: 0,
-    minWidth: 140,
-    background: "#fff",
-    borderRadius: 12,
-    boxShadow: "0 14px 40px rgba(0,0,0,0.14)",
-    border: "1px solid rgba(15,23,42,0.08)",
-    overflow: "hidden",
-    zIndex: 1200,
-  },
-  profileMenuItem: {
-    width: "100%",
-    padding: "10px 14px",
-    background: "transparent",
-    border: "none",
-    textAlign: "left",
-    color: "#0f172a",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "background 0.15s ease",
-  },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: "50%",
-    background: "rgba(34,197,94,0.1)",
-    border: "2px solid rgba(34,197,94,0.3)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    transition: "all 0.2s",
-  },
-  onlineDot: {
-    position: "absolute",
-    bottom: 1,
-    right: 1,
-    width: 10,
-    height: 10,
-    borderRadius: "50%",
-    background: "#22c55e",
-    border: "2px solid #0d1321",
-    boxShadow: "0 0 0 3px rgba(34,197,94,0.2)",
-  },
-  profileName: {
-    fontSize: 14,
-    fontWeight: 700,
-    color: "#000000",
-    letterSpacing: "0.01em",
-  },
-  profileRole: {
-    fontSize: 11,
-    color: "#64748b",
-    marginTop: 1,
-  },
-  toggleWrap: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    cursor: "pointer",
-  },
-  toggleTrack: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    position: "relative",
-    transition: "background 0.3s ease",
-    flexShrink: 0,
-  },
-  toggleThumb: {
-    position: "absolute",
-    top: 2,
-    width: 20,
-    height: 20,
-    borderRadius: "50%",
-    background: "#fff",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-    transition: "transform 0.25s cubic-bezier(.4,0,.2,1)",
-  },
-  toggleLabel: {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-    transition: "color 0.2s",
-  },
-
-  // Status bar
-  statusBar: {
-    display: "flex",
-    gap: 8,
-    paddingBottom: 16,
-  },
-  chip: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 10px",
-    borderRadius: 10,
-    border: "1px solid",
-    transition: "all 0.2s",
-  },
-
-  // Sections
   section: {
     marginBottom: 4,
   },
@@ -772,15 +721,6 @@ const styles = {
     minWidth: 20,
     textAlign: "center",
   },
-
-  // Order cards
-  orderCard: {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 16,
-    padding: 16,
-    transition: "all 0.2s",
-  },
   orderCardTop: {
     display: "flex",
     alignItems: "flex-start",
@@ -791,7 +731,7 @@ const styles = {
     width: 36,
     height: 36,
     borderRadius: 10,
-    background: "linear-gradient(135deg,#22c55e,#16a34a)",
+    background: "linear-gradient(135deg, #66b282 0%, #15803d 60%, #14532d 100%)",
     color: "#fff",
     display: "flex",
     alignItems: "center",
@@ -833,7 +773,7 @@ const styles = {
     flexShrink: 0,
   },
   orderMeta: {
-    background: "rgba(0,0,0,0.2)",
+    background: "rgba(0,0,0,0.08)",
     borderRadius: 10,
     padding: "10px 12px",
     marginBottom: 14,
@@ -854,7 +794,7 @@ const styles = {
   },
   metaValue: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: "#475569",
     fontWeight: 600,
     textAlign: "right",
     flex: 1,
@@ -862,7 +802,7 @@ const styles = {
   completeBtn: {
     width: "100%",
     padding: "11px 0",
-    background: "linear-gradient(135deg,#22c55e,#16a34a)",
+    background: "linear-gradient(135deg, #66b282 0%, #15803d 60%, #14532d 100%)",
     color: "#fff",
     border: "none",
     borderRadius: 12,
@@ -875,6 +815,7 @@ const styles = {
     letterSpacing: "0.02em",
     boxShadow: "0 4px 16px rgba(34,197,94,0.35)",
     transition: "all 0.2s",
+    minHeight: 44,
   },
   cardActions: {
     display: "flex",
@@ -892,21 +833,21 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     transition: "all 0.2s",
+    minHeight: 44,
   },
   detailBtn: {
     flex: 2,
     padding: "9px 0",
-    background: "#22c55e",
+    background: "linear-gradient(135deg, #66b282 0%, #15803d 60%, #14532d 100%)",
     color: "#ffffff",
-    border: "1px solid rgba(34,197,94,0.25)",
+    border: "none",
     borderRadius: 10,
     fontSize: 12,
     fontWeight: 700,
     cursor: "pointer",
     transition: "all 0.2s",
+    minHeight: 44,
   },
-
-  // Empty / Loading
   emptyState: {
     display: "flex",
     flexDirection: "column",
@@ -956,9 +897,122 @@ const CSS = `
 
   * { box-sizing: border-box; }
 
+  /* ── Root layout ───────────────────────────────────────── */
+  .dd-root {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background: #0a0f1a;
+    font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  }
+
+  /* ── Map panel ─────────────────────────────────────────── */
+  .dd-map-panel {
+    flex: 1 1 0%;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* ── Order panel ───────────────────────────────────────── */
+  .dd-order-panel {
+    flex: 0 0 360px;
+    width: 360px;
+    background: #f5f7f5;
+    border-left: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .dd-panel-header {
+    padding: 16px 16px 0;
+    border-bottom: 2px solid rgba(0,0,0,0.06);
+    background: #f5f7f5;
+    flex-shrink: 0;
+  }
+
+  .dd-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Profile card ──────────────────────────────────────── */
+  .profile-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  /* ── Status bar ────────────────────────────────────────── */
+  .status-bar {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 12px;
+  }
+
+  .status-chip {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid;
+    transition: all 0.2s;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .chip-value {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Order cards ───────────────────────────────────────── */
+  .order-card {
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 16px;
+    padding: 14px;
+    transition: all 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  /* ── Debug panel ───────────────────────────────────────── */
+  .dd-debug-panel {
+    position: absolute;
+    bottom: 24px;
+    left: 16px;
+    z-index: 800;
+    background: rgba(10,15,26,0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #64748b;
+    letter-spacing: 0.02em;
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Scrollbar ─────────────────────────────────────────── */
   .order-panel-scroll::-webkit-scrollbar { width: 4px; }
   .order-panel-scroll::-webkit-scrollbar-track { background: transparent; }
-  .order-panel-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+  .order-panel-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
 
   .leaflet-container { background: #1a2332 !important; }
 
@@ -971,10 +1025,123 @@ const CSS = `
     50% { opacity: 0.5; }
   }
 
-  /* Mobile: stack layout */
-  @media (max-width: 768px) {
-    /* Map takes 55vh, panel below */
-    body > * [style*="flex-direction"] { flex-direction: column !important; }
+  /* ════════════════════════════════════════════════════════
+     RESPONSIVE BREAKPOINTS
+  ════════════════════════════════════════════════════════ */
+
+  /* Tablet: 768px – 1024px */
+  @media (max-width: 1024px) {
+    .dd-order-panel {
+      flex: 0 0 320px;
+      width: 320px;
+    }
+  }
+
+  /* Mobile: ≤ 767px — stack map on top, panel on bottom */
+  @media (max-width: 767px) {
+    .dd-root {
+      flex-direction: column;
+      height: 100dvh;          /* dynamic viewport height for mobile browsers */
+      overflow: hidden;
+    }
+
+    .dd-map-panel {
+      flex: 0 0 52vh;
+      min-height: 200px;
+      width: 100%;
+    }
+
+    .dd-order-panel {
+      flex: 1 1 0%;
+      width: 100%;
+      border-left: none;
+      border-top: 2px solid rgba(0,0,0,0.08);
+      /* allow natural scroll on the panel */
+      overflow: hidden;
+    }
+
+    .dd-panel-header {
+      padding: 12px 14px 0;
+    }
+
+    .dd-panel-body {
+      padding: 12px 14px;
+    }
+
+    .profile-card {
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    /* Shrink toggle label on small screens */
+    .profile-name-text {
+      font-size: 13px !important;
+      max-width: 120px;
+    }
+
+    .status-bar {
+      gap: 6px;
+      padding-bottom: 10px;
+    }
+
+    .status-chip {
+      padding: 6px 8px;
+      gap: 6px;
+    }
+
+    .chip-value {
+      font-size: 10px;
+    }
+
+    .order-card {
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    /* Hide debug panel on very small screens to avoid clutter */
+    .dd-debug-panel {
+      display: none;
+    }
+  }
+
+  /* Small mobile: ≤ 390px */
+  @media (max-width: 390px) {
+    .dd-map-panel {
+      flex: 0 0 45vh;
+    }
+
+    .dd-panel-header {
+      padding: 10px 12px 0;
+    }
+
+    .dd-panel-body {
+      padding: 10px 12px;
+    }
+
+    /* Collapse toggle label text entirely to just show the track */
+    .toggle-label-text {
+      display: none;
+    }
+
+    .profile-name-text {
+      max-width: 100px;
+    }
+  }
+
+  /* Very small mobile: ≤ 320px */
+  @media (max-width: 320px) {
+    .dd-map-panel {
+      flex: 0 0 40vh;
+    }
+
+    .profile-name-text {
+      max-width: 80px;
+      font-size: 12px !important;
+    }
+
+    .status-chip {
+      padding: 5px 6px;
+    }
   }
 `;
 

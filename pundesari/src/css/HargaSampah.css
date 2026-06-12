@@ -68,6 +68,7 @@
   display: flex;
   align-items: center;
   gap: 18px;
+  margin-left: auto;
 }
 
 .notif-btn {
@@ -373,9 +374,10 @@
 @media (max-width: 768px) {
 
   .topbar {
-    flex-direction: column;
+    flex-direction: row;
     gap: 16px;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .harga-content {

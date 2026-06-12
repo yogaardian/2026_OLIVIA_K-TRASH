@@ -9,12 +9,16 @@ const db = require('../db');
 
 const sendUserCurrentOrderState = async (socket, userId) => {
   try {
+    console.log('[Socket] sendUserCurrentOrderState for user:', userId);
     const [orders] = await db.query(
       `SELECT * FROM orders WHERE user_id = ? AND status IN (?, ?, ?, ?, ?) ORDER BY id DESC LIMIT 1`,
       [userId, 'pending', 'searching_driver', 'assigned', 'on_the_way', 'arrived']
     );
     if (orders.length > 0) {
+      console.log('[Socket] Emitting ORDER_STATE to user:', { userId, orderId: orders[0].id });
       socket.emit(socketEvents.SERVER.ORDER_STATE, { order: orders[0] });
+    } else {
+      console.log('[Socket] No active orders found for user:', userId);
     }
   } catch (err) {
     console.error('Error sending current order state to user:', err);
@@ -69,12 +73,16 @@ const setupSocketHandlers = (io) => {
 
       // Send current order state to the user
       try {
+        console.log('[Socket] JOIN_ORDER_ROOM - fetching order state for:', orderId);
         const [orders] = await db.query(
           'SELECT * FROM orders WHERE id = ?',
           [orderId]
         );
         if (orders.length > 0) {
-          socket.emit('order:state', { order: orders[0] });
+          console.log('[Socket] Emitting ORDER_STATE on join for order:', orderId);
+          socket.emit(socketEvents.SERVER.ORDER_STATE, { order: orders[0] });
+        } else {
+          console.log('[Socket] Order not found:', orderId);
         }
       } catch (err) {
         console.error('Error fetching order state:', err);
@@ -129,9 +137,9 @@ const setupSocketHandlers = (io) => {
     // Disconnect Event
     // ==========================================
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       console.log(
-        `[Socket] User disconnected: ${socket.id} (User ID: ${socket.userId})`
+        `[Socket] User disconnected: ${socket.id} (User ID: ${socket.userId}) reason=${reason}`
       );
     });
 

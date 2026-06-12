@@ -21,6 +21,7 @@ module.exports = {
     AUTH_ERROR: 'auth:error',
     
     // Order Events
+    ORDER_STATE: 'order:state',
     ORDER_CREATED: 'order:created',
     ORDER_SEARCHING: 'order:searching_driver',
     ORDER_DRIVER_ASSIGNED: 'order:driver_assigned',

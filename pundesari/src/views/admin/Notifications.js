@@ -57,39 +57,8 @@ function Notifications() {
                 </div>
 
                 {/* Activity Section */}
-                <hr />
-                <h6 className="mt-3 mb-3">Aktivitas BankTrash</h6>
-                <div className="menu-item mb-2" style={{ padding: "12px", borderBottom: "1px solid #eee", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>
-                    <i className="nc-icon nc-pin-3 mr-2"></i>
-                    Alamat Tersimpan
-                  </span>
-                  <i className="nc-icon nc-stre-right"></i>
-                </div>
-                <div className="menu-item mb-2" style={{ padding: "12px", borderBottom: "1px solid #eee", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>
-                    <i className="nc-icon nc-chart-pie-35 mr-2"></i>
-                    Aktivitas
-                  </span>
-                  <i className="nc-icon nc-stre-right"></i>
-                </div>
 
-                {/* Other Section */}
-                <h6 className="mt-4 mb-3">Lainnya</h6>
-                <div className="menu-item mb-2" style={{ padding: "12px", borderBottom: "1px solid #eee", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>
-                    <i className="nc-icon nc-support-17 mr-2"></i>
-                    Bantuan dan laporan
-                  </span>
-                  <i className="nc-icon nc-stre-right"></i>
-                </div>
-                <div className="menu-item mb-2" style={{ padding: "12px", borderBottom: "1px solid #eee", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>
-                    <i className="nc-icon nc-notes mr-2"></i>
-                    Ketentuan layanan
-                  </span>
-                  <i className="nc-icon nc-stre-right"></i>
-                </div>
+                
                 <div className="menu-item mb-2" style={{ padding: "12px", borderBottom: "1px solid #eee", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>
                     <i className="nc-icon nc-simple-delete mr-2"></i>

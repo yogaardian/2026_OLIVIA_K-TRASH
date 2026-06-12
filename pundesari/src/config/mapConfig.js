@@ -17,7 +17,7 @@ export const MAP_OPTIONS = {
   minZoom: 3,
   zoomControl: false, // disable default controls (custom ones below)
   attributionControl: true,
-  preferCanvas: true, // better performance
+  preferCanvas: false, // use SVG renderer to avoid Leaflet canvas context issues
 };
 
 // ─── Zoom Control Style (modern, minimal) ──────────────────────────────────

@@ -23,6 +23,8 @@ const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebarCollapsed') === 'true'; } catch { return false; }
   });
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 1024 : false);
 
   // Sync collapsed state to body class for layout
   useEffect(() => {
@@ -36,6 +38,20 @@ const Sidebar = () => {
     };
   }, [collapsed]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 1024;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setMobileOpen(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const toggleCollapsed = () => {
     setCollapsed((s) => {
       const next = !s;
@@ -43,6 +59,9 @@ const Sidebar = () => {
       return next;
     });
   };
+
+  const toggleMobileOpen = () => setMobileOpen((value) => !value);
+  const closeMobileSidebar = () => setMobileOpen(false);
 
   useEffect(() => {
     const handler = () => setProfileOpen(true);
@@ -58,12 +77,26 @@ const Sidebar = () => {
 
   return (
     <>
-      <aside className={`user-sidebar${collapsed ? ' collapsed' : ''}`}>
+      {isMobile && !mobileOpen && (
+        <button
+          className="user-sidebar-hamburger-toggle"
+          type="button"
+          onClick={toggleMobileOpen}
+          aria-label="Buka menu sidebar"
+        >
+          ☰
+        </button>
+      )}
+      {isMobile && mobileOpen && (
+        <div className="user-sidebar-backdrop visible" onClick={closeMobileSidebar} />
+      )}
+      <aside className={`user-sidebar${collapsed ? ' collapsed' : ''} ${isMobile ? ' mobile' : ''} ${isMobile && mobileOpen ? ' open' : ''}`}>
       <div
         className="user-sidebar-logo"
         onClick={() => {
           if (!isSearchingDriver) {
             history.push("/user/dashboard");
+            if (isMobile) closeMobileSidebar();
           }
         }}
         style={isSearchingDriver ? { cursor: 'not-allowed', opacity: 0.8 } : undefined}
@@ -71,13 +104,15 @@ const Sidebar = () => {
         <span className="user-sidebar-logo-text">K-Trash</span>
       </div>
 
-        <button
-          className="user-sidebar-collapse-btn"
-          onClick={toggleCollapsed}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? '→' : '←'}
-        </button>
+        {!isMobile && (
+          <button
+            className="user-sidebar-collapse-btn"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? '→' : '←'}
+          </button>
+        )}
 
       <nav className="user-sidebar-nav">
         {navItems.map((item) => (
@@ -87,6 +122,7 @@ const Sidebar = () => {
             onClick={() => {
               if (isSearchingDriver) return;
               history.push(item.path);
+              if (isMobile) closeMobileSidebar();
             }}
             style={isSearchingDriver ? { cursor: 'not-allowed' } : undefined}
           >
@@ -104,6 +140,7 @@ const Sidebar = () => {
             if (isSearchingDriver) return;
             setProfileOpen(false); // pastikan panel profil tertutup
             history.push('/user/profile');
+            if (isMobile) closeMobileSidebar();
           }}
           style={isSearchingDriver ? { cursor: 'not-allowed' } : undefined}
         >
@@ -115,7 +152,10 @@ const Sidebar = () => {
           <button
             type="button"
             className="user-sidebar-item user-sidebar-cancel-order"
-            onClick={cancelOrder}
+            onClick={() => {
+              cancelOrder();
+              if (isMobile) closeMobileSidebar();
+            }}
             style={{ marginTop: '12px', borderRadius: '12px', border: '1px solid #e74c3c', backgroundColor: '#fff', color: '#c0392b' }}
           >
             <span className="user-sidebar-item-icon">❌</span>
