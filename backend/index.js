@@ -1647,13 +1647,37 @@ app.patch('/users/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ status: 'fail', message: 'Akses ditolak' });
     }
 
-    const { nama, nomor_hp, profile_photo } = req.body;
+      const { nama, nomor_hp, profile_photo, current_password, new_password } = req.body;
     const updateFields = [];
     const params = [];
 
     if (nama !== undefined) { updateFields.push('nama = ?'); params.push(nama); }
     if (nomor_hp !== undefined) { updateFields.push('nomor_hp = ?'); params.push(nomor_hp); }
     if (profile_photo !== undefined) { updateFields.push('profile_photo = ?'); params.push(profile_photo); }
+
+    if (new_password !== undefined) {
+      if (!current_password) {
+        return res.status(400).json({ status: 'fail', message: 'Password lama diperlukan untuk mengubah password' });
+      }
+      if (typeof new_password !== 'string' || new_password.length < 6) {
+        return res.status(400).json({ status: 'fail', message: 'Password baru minimal 6 karakter' });
+      }
+
+      const [userRows] = await db.query('SELECT password FROM users WHERE id = ?', [id]);
+      if (!userRows || userRows.length === 0) {
+        return res.status(404).json({ status: 'fail', message: 'User tidak ditemukan' });
+      }
+
+      const currentHash = userRows[0].password || '';
+      const isMatch = await bcrypt.compare(current_password, currentHash);
+      if (!isMatch) {
+        return res.status(403).json({ status: 'fail', message: 'Password lama tidak cocok' });
+      }
+
+      const hashedPassword = await bcrypt.hash(new_password, 10);
+      updateFields.push('password = ?');
+      params.push(hashedPassword);
+    }
 
     if (updateFields.length === 0) {
       return res.status(400).json({ status: 'fail', message: 'Tidak ada field untuk diupdate' });

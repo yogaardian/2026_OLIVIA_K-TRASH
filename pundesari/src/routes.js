@@ -17,11 +17,11 @@
 */
 import Dashboard from "views/admin/Dashboard.js";
 import UserProfile from "views/admin/UserProfile.js";
-import TableList from "views/admin/TableList.js";
+import Petugas from "views/admin/Petugas.js";
 import WasteManagement from "views/admin/WasteManagement.js";
-import Icons from "views/admin/Icons.js";
+import Transaksi from "views/admin/Transaksi.js";
 import Maps from "views/admin/Maps.js";
-import Notifications from "views/admin/Notifications.js";
+import Pengaturan from "views/admin/Pengaturan.js";
 import Saldo from "views/admin/SaldoAdmin.js";
 import MarketplaceAdmin from "views/admin/MarketplaceAdmin.js";
 
@@ -43,10 +43,10 @@ const dashboardRoutes = [
     layout: "/admin"
   },
   {
-    path: "/table",
+    path: "/petugas",
     name: "Petugas",
     icon: "nc-icon nc-notes",
-    component: TableList,
+    component: Petugas,
     layout: "/admin"
   },
   {
@@ -57,10 +57,10 @@ const dashboardRoutes = [
     layout: "/admin"
   },
   {
-    path: "/icons",
+    path: "/Transaksi",
     name: "Transaksi",
     icon: "nc-icon nc-atom",
-    component: Icons,
+    component: Transaksi,
     layout: "/admin"
   },
   // {
@@ -85,10 +85,10 @@ const dashboardRoutes = [
     layout: "/admin"
   },
   {
-    path: "/notifications",
+    path: "/Pengaturan",
     name: "Pengaturan",
     icon: "nc-icon nc-bell-55",
-    component: Notifications,
+    component: Pengaturan,
     layout: "/admin"
   }
 ];
