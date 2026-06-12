@@ -16,7 +16,7 @@ light-bootstrap-dashboard-react
 │   ├── css
 │   │   ├── demo.css
 │   │   ├── documentation.css
-│   │   └── light-bootstrap-dashboard.css
+│   │   └── light.css
 │   ├── img
 │   └── tutorial-components.html
 ├── public
